@@ -3,7 +3,7 @@
 #
 # This is free software, licensed under the MIT License.
 # See /LICENSE for more information.
-# 
+#
 # https://github.com/Curious-r/OpenWrtBuildWorkflows
 # Description: Automatically check OpenWrt source code update and build it. No additional keys are required.
 #-------------------------------------------------------------------------------------------------------
@@ -17,3 +17,7 @@
 #EOF
 #git apply example.patch
 
+
+cd ../
+[ -e feeds-hcwhan ] && mv feeds-hcwhan/ openwrt/package/feeds/
+cd ./openwrt/
