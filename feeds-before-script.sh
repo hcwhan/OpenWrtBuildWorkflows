@@ -3,14 +3,14 @@
 #
 # This is free software, licensed under the MIT License.
 # See /LICENSE for more information.
-# 
+#
 # https://github.com/Curious-r/OpenWrtBuildWorkflows
 # Description: Automatically check OpenWrt source code update and build it. No additional keys are required.
 #-------------------------------------------------------------------------------------------------------
 #
 #
 # This script will run before feeds update, something you want to do at that moment should be written here.
-# A common function of this script is to modify the cloned OpenWrt source code. 
+# A common function of this script is to modify the cloned OpenWrt source code.
 #
 # For instance, you can edit the feeds.conf.default to induct packages you need.
 # This is followed by some editing examples.
@@ -35,4 +35,3 @@
 #patch content
 #EOF
 #git apply example.patch
-
