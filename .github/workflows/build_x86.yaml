@@ -48,12 +48,12 @@ env:
   # CONFIG_FILE is the name of your own config files for compiling, you should upload these files into the root
   # directory of your workflow repo.
   CONFIG_FILE: build_x86.config
-  # CUSTOM_SCRIPT_1 is the name of extra bash script you want to execute before feeds update&install.
-  # CUSTOM_SCRIPT_2 is the name of extra bash script you want to execute after feeds update&install.
+  # FEEDS_BEFORE_SCRIPT is the name of extra bash script you want to execute before feeds update&install.
+  # FEEDS_AFTER_SCRIPT is the name of extra bash script you want to execute after feeds update&install.
   # You can modify the initial settings of your firmware through these two scripts. If this is what you need,
   # please upload your scripts to the root directory of your workflow repo.
-  CUSTOM_SCRIPT_1: custom-script-1-before.sh
-  CUSTOM_SCRIPT_2: custom-script-2-after.sh
+  FEEDS_BEFORE_SCRIPT: feeds-before-script.sh
+  FEEDS_AFTER_SCRIPT: feeds-after-script.sh
   # STORE_PRODUCTS determine whether to upload all compilation products to workflow artifacts.
   # Not only firmwires, all compiled packages will be here, including compiled but not solidified into firmware.
   STORE_PRODUCTS: true
@@ -125,11 +125,11 @@ jobs:
           git clone --depth 1 --branch $REPO_BRANCH --single-branch $REPO_URL openwrt/
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-      - name: Run custom-script-1
+      - name: Run feeds-before-script
         run: |
-          chmod +x $CUSTOM_SCRIPT_1
+          chmod +x $FEEDS_BEFORE_SCRIPT
           cd openwrt/
-          $GITHUB_WORKSPACE/$CUSTOM_SCRIPT_1
+          $GITHUB_WORKSPACE/$FEEDS_BEFORE_SCRIPT
 
       - name: Update feeds
         run: cd openwrt/ && ./scripts/feeds update -a
@@ -137,16 +137,15 @@ jobs:
       - name: Install feeds
         run: cd openwrt/ && ./scripts/feeds install -a
 
-      - name: Load custom configuration
+      - name: Run feeds-after-script
         run: |
-          [ -e files ] && mv files/ openwrt/files/
-          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-
-      - name: Run custom-script-2
-        run: |
-          chmod +x $CUSTOM_SCRIPT_2
+          chmod +x $FEEDS_AFTER_SCRIPT
           cd openwrt/
-          $GITHUB_WORKSPACE/$CUSTOM_SCRIPT_2
+          $GITHUB_WORKSPACE/$FEEDS_AFTER_SCRIPT
+
+      - name: Copy build config file
+        run: |
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
 
       - name: SSH connection to Actions
         uses: P3TERX/ssh2actions@main
