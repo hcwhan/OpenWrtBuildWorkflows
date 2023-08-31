@@ -32,9 +32,9 @@ on:
 
 env:
   # REPO means the OpenWrt repo you want to build from in this workflow.
-  # You can modify the REPO_NAME to any name you want, but remember not to let it have the same name in
+  # You can modify the WORK_NAME to any name you want, but remember not to let it have the same name in
   # other workflows.
-  REPO_NAME: immortalwrt-NX30Pro
+  WORK_NAME: immortalwrt-NX30Pro
   REPO_URL: https://github.com/immortalwrt/immortalwrt.git
   REPO_BRANCH: openwrt-23.05
   BUILD_DEPENDS:  "ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
@@ -84,14 +84,14 @@ jobs:
         id: cache-hash
         uses: actions/cache@main
         with:
-          path: .${{ env.REPO_NAME }}-${{ env.REPO_BRANCH }}-commit-hash
+          path: .${{ env.WORK_NAME }}-${{ env.REPO_BRANCH }}-commit-hash
           key: HEAD-${{ steps.get-hash.outputs.commit-hash }}
 
       - name: Save New Commit Hash
         if: steps.cache-hash.outputs.cache-hit != 'true'
         run: |
           echo ${{ steps.get-hash.outputs.commit-hash }} |
-            tee .$REPO_NAME-$REPO_BRANCH-commit-hash
+            tee .$WORK_NAME-$REPO_BRANCH-commit-hash
 
   build:
     name: Build firmware
@@ -169,6 +169,7 @@ jobs:
           cd openwrt/
           echo -e "$(nproc) thread compile"
           make -j$(nproc) || make -j1 || make -j1 V=s
+          cp ./.config ./bin/targets/*/*/
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -182,7 +183,7 @@ jobs:
         uses: actions/upload-artifact@main
         if: steps.compile.outputs.status == 'success' && env.STORE_PRODUCTS == 'true'
         with:
-          name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+          name: ${{ env.WORK_NAME }}_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: openwrt/bin/
 
       - name: Organize firmware-related files
@@ -197,7 +198,7 @@ jobs:
         uses: actions/upload-artifact@main
         if: steps.organize-files.outputs.status == 'success' && env.STORE_FIRMWARE == 'true' && !cancelled()
         with:
-          name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+          name: ${{ env.WORK_NAME }}_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE }}
 
       - name: Upload firmware to cowtransfer
@@ -222,7 +223,7 @@ jobs:
         id: tag
         if: env.RELEASE_FIRMWARE == 'true' && !cancelled()
         run: |
-          echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+          echo "release_tag=$WORK_NAME-$(date +"%Y.%m.%d_%H.%M.%S")" >> $GITHUB_OUTPUT
           touch release.txt
           echo "Build from $REPO_URL $REPO_BRANCH" >> release.txt
           [ $COWTRANSFER_FIRMWARE = true -o $WETRANSFER_FIRMWARE = true ] && echo 'Products transfer:' >> release.txt
