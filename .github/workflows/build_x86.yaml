@@ -34,7 +34,7 @@ env:
   # REPO means the OpenWrt repo you want to build from in this workflow.
   # You can modify the REPO_NAME to any name you want, but remember not to let it have the same name in
   # other workflows.
-  REPO_NAME: immortalwrt
+  REPO_NAME: immortalwrt-x86
   REPO_URL: https://github.com/immortalwrt/immortalwrt.git
   REPO_BRANCH: openwrt-23.05
   BUILD_DEPENDS:  "ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
@@ -62,7 +62,7 @@ env:
   # The following are options of where the firmware needs to be transfered.
   COWTRANSFER_FIRMWARE: false
   WETRANSFER_FIRMWARE: false
-  RELEASE_FIRMWARE: false
+  RELEASE_FIRMWARE: true
   # Change the following to your time zone.
   TIME_ZONE: Asia/Shanghai
 
@@ -168,7 +168,7 @@ jobs:
         run: |
           cd openwrt/
           echo -e "$(nproc) thread compile"
-          make -j$(nproc) || make -j$(nproc) V=s || make -j1 || make -j1 V=s
+          make -j$(nproc) || make -j1 || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV

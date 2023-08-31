@@ -13,7 +13,7 @@
 #-------------------------------------------------------------------------------------------------------
 
 # Workflow name which is showed in GitHub Actions.
-name: Build Example-Firmware for Example-Device
+name: Build Example for Device
 
 on:
   workflow_dispatch:
@@ -37,32 +37,32 @@ env:
   REPO_NAME: example-name
   REPO_URL: https://github.com/example/example.git
   REPO_BRANCH: example-branch
-  BUILD_DEPENDS:  "ack antlr3 aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 \
-                   ccache clang cmake cpio curl device-tree-compiler fastjar file flex gawk gettext gcc-multilib \
-                   g++ g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev \
-                   libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev \
-                   libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full \
-                   patch pkgconf python2.7 python3 python3-distutils python3-pip libpython3-dev qemu-utils rsync \
-                   scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd \
-                   zlib1g-dev"
+  BUILD_DEPENDS:  "ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+                  bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
+                  g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
+                  libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5 \
+                  libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lld llvm lrzsz mkisofs msmtp \
+                  nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip python3-ply \
+                  python-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig \
+                  texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev"
   # CONFIG_FILE is the name of your own config files for compiling, you should upload these files into the root
   # directory of your workflow repo.
   CONFIG_FILE: example.config
-  # CUSTOM_SCRIPT_1 is the name of extra bash script you want to execute before feeds update&install.
-  # CUSTOM_SCRIPT_2 is the name of extra bash script you want to execute after feeds update&install.
+  # FEEDS_BEFORE_SCRIPT is the name of extra bash script you want to execute before feeds update&install.
+  # FEEDS_AFTER_SCRIPT is the name of extra bash script you want to execute after feeds update&install.
   # You can modify the initial settings of your firmware through these two scripts. If this is what you need,
   # please upload your scripts to the root directory of your workflow repo.
-  CUSTOM_SCRIPT_1: example-custom-script-1.sh
-  CUSTOM_SCRIPT_2: example-custom-script-2.sh
+  FEEDS_BEFORE_SCRIPT: feeds-before-script.sh
+  FEEDS_AFTER_SCRIPT: feeds-after-script.sh
   # STORE_PRODUCTS determine whether to upload all compilation products to workflow artifacts.
   # Not only firmwires, all compiled packages will be here, including compiled but not solidified into firmware.
-  STORE_PRODUCTS: false
+  STORE_PRODUCTS: true
   # STORE_FIRMWARE determine whether to upload firmwares to workflow artifacts.
   STORE_FIRMWARE: true
   # The following are options of where the firmware needs to be transfered.
   COWTRANSFER_FIRMWARE: false
   WETRANSFER_FIRMWARE: false
-  RELEASE_FIRMWARE: false
+  RELEASE_FIRMWARE: true
   # Change the following to your time zone.
   TIME_ZONE: Asia/Shanghai
 
@@ -95,7 +95,7 @@ jobs:
 
   build:
     name: Build firmware
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: check
     permissions:
       contents: write
@@ -125,11 +125,11 @@ jobs:
           git clone --depth 1 --branch $REPO_BRANCH --single-branch $REPO_URL openwrt/
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-      - name: Run custom-script-1
+      - name: Run feeds-before-script
         run: |
-          chmod +x $CUSTOM_SCRIPT_1
+          chmod +x $FEEDS_BEFORE_SCRIPT
           cd openwrt/
-          $GITHUB_WORKSPACE/$CUSTOM_SCRIPT_1
+          $GITHUB_WORKSPACE/$FEEDS_BEFORE_SCRIPT
 
       - name: Update feeds
         run: cd openwrt/ && ./scripts/feeds update -a
@@ -137,16 +137,15 @@ jobs:
       - name: Install feeds
         run: cd openwrt/ && ./scripts/feeds install -a
 
-      - name: Load custom configuration
+      - name: Run feeds-after-script
         run: |
-          [ -e files ] && mv files/ openwrt/files/
-          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-
-      - name: Run custom-script-2
-        run: |
-          chmod +x $CUSTOM_SCRIPT_2
+          chmod +x $FEEDS_AFTER_SCRIPT
           cd openwrt/
-          $GITHUB_WORKSPACE/$CUSTOM_SCRIPT_2
+          $GITHUB_WORKSPACE/$FEEDS_AFTER_SCRIPT
+
+      - name: Copy build config file
+        run: |
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
 
       - name: SSH connection to Actions
         uses: P3TERX/ssh2actions@main
@@ -155,14 +154,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
-      - name: Download packages
-        id: download-packages
-        run: |
-          cd openwrt/
-          make defconfig
-          make download -j8
-          find dl -size -1024c -exec ls -l {} \;
-          find dl -size -1024c -exec rm -f {} \;
+      # - name: Download packages
+      #   id: download-packages
+      #   run: |
+      #     cd openwrt/
+      #     make defconfig
+      #     make download -j8
+      #     find dl -size -1024c -exec ls -l {} \;
+      #     find dl -size -1024c -exec rm -f {} \;
 
       - name: Compile the firmware
         id: compile
@@ -241,25 +240,25 @@ jobs:
           body_path: release.txt
           files: ${{ env.FIRMWARE }}/*
 
-  clean:
-    name: Clean up old assets
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: write
+  # clean:
+  #   name: Clean up old assets
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: write
+  #     contents: write
 
-    steps:
-      - name: Delete workflow runs
-        uses: Mattraks/delete-workflow-runs@main
-        with:
-          retain_days: 1
-          keep_minimum_runs: 1
+  #   steps:
+  #     - name: Delete workflow runs
+  #       uses: Mattraks/delete-workflow-runs@main
+  #       with:
+  #         retain_days: 1
+  #         keep_minimum_runs: 1
 
-      - name: Remove old Releases
-        uses: dev-drprasad/delete-older-releases@master
-        if: env.RELEASE_FIRMWARE == 'true' && !cancelled()
-        with:
-          keep_latest: 3
-          delete_tags: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Remove old Releases
+  #       uses: dev-drprasad/delete-older-releases@master
+  #       if: env.RELEASE_FIRMWARE == 'true' && !cancelled()
+  #       with:
+  #         keep_latest: 3
+  #         delete_tags: true
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
