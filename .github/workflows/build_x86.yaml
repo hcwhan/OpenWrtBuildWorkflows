@@ -105,18 +105,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
 
-      - name: Initialization environment
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet/ /usr/local/lib/android/ /opt/ghc/
-          sudo -E apt-get -qq update
-          sudo -E apt-get -qq install $BUILD_DEPENDS
-          sudo -E apt-get -qq autoremove --purge
-          sudo -E apt-get -qq clean
-          sudo timedatectl set-timezone $TIME_ZONE
-          sudo mkdir -p /workdir/
-          sudo chown $USER:$GROUPS /workdir/
+      # - name: Initialization environment
+      #   env:
+      #     DEBIAN_FRONTEND: noninteractive
+      #   run: |
+      #     sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet/ /usr/local/lib/android/ /opt/ghc/
+      #     sudo -E apt-get -qq update
+      #     sudo -E apt-get -qq install $BUILD_DEPENDS
+      #     sudo -E apt-get -qq autoremove --purge
+      #     sudo -E apt-get -qq clean
+      #     sudo timedatectl set-timezone $TIME_ZONE
+      #     sudo mkdir -p /workdir/
+      #     sudo chown $USER:$GROUPS /workdir/
 
       - name: Clone source code
         working-directory: /workdir
@@ -125,23 +125,23 @@ jobs:
           git clone --depth 1 --branch $REPO_BRANCH --single-branch $REPO_URL openwrt/
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-      - name: Run feeds-before-script
-        run: |
-          chmod +x $FEEDS_BEFORE_SCRIPT
-          cd openwrt/
-          $GITHUB_WORKSPACE/$FEEDS_BEFORE_SCRIPT
+      # - name: Run feeds-before-script
+      #   run: |
+      #     chmod +x $FEEDS_BEFORE_SCRIPT
+      #     cd openwrt/
+      #     $GITHUB_WORKSPACE/$FEEDS_BEFORE_SCRIPT
 
-      - name: Update feeds
-        run: cd openwrt/ && ./scripts/feeds update -a
+      # - name: Update feeds
+      #   run: cd openwrt/ && ./scripts/feeds update -a
 
-      - name: Install feeds
-        run: cd openwrt/ && ./scripts/feeds install -a
+      # - name: Install feeds
+      #   run: cd openwrt/ && ./scripts/feeds install -a
 
-      - name: Run feeds-after-script
-        run: |
-          chmod +x $FEEDS_AFTER_SCRIPT
-          cd openwrt/
-          $GITHUB_WORKSPACE/$FEEDS_AFTER_SCRIPT
+      # - name: Run feeds-after-script
+      #   run: |
+      #     chmod +x $FEEDS_AFTER_SCRIPT
+      #     cd openwrt/
+      #     $GITHUB_WORKSPACE/$FEEDS_AFTER_SCRIPT
 
       - name: Copy build config file
         run: |
@@ -177,6 +177,7 @@ jobs:
           mkdir bin/targets/x86
           mkdir bin/targets/x86/64
           mkdir bin/targets/x86/64/2222
+          touch bin/targets/x86/64/3333
           cp ./.config ./bin/targets/*/*/
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
@@ -231,7 +232,7 @@ jobs:
         id: tag
         if: env.RELEASE_FIRMWARE == 'true' && !cancelled()
         run: |
-          echo "release_tag=$(cat WORK_NAME)-$(date +"%Y.%m.%d_%H.%M.%S")" >> $GITHUB_OUTPUT
+          echo "release_tag=$WORK_NAME-$(date +"%Y.%m.%d_%H.%M.%S")" >> $GITHUB_OUTPUT
           touch release.txt
           echo "Build from $REPO_URL $REPO_BRANCH" >> release.txt
           [ $COWTRANSFER_FIRMWARE = true -o $WETRANSFER_FIRMWARE = true ] && echo 'Products transfer:' >> release.txt
