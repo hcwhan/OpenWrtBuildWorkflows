@@ -222,7 +222,7 @@ jobs:
 
       - name: Generate release tag
         id: tag
-        if: env.RELEASE_FIRMWARE == 'true' && !cancelled()
+        if: steps.compile.outputs.status == 'success' && env.RELEASE_FIRMWARE == 'true' && !cancelled()
         run: |
           echo "release_tag=$WORK_NAME-$(date +"%Y.%m.%d_%H.%M.%S")" >> $GITHUB_OUTPUT
           touch release.txt
