@@ -43,7 +43,7 @@ env:
                   texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd"
   # CONFIG_FILE is the name of your own config files for compiling, you should upload these files into the root
   # directory of your workflow repo.
-  CONFIG_FILE: build_x86.config
+  CONFIG_FILE: .config-x86
   # FEEDS_BEFORE_SCRIPT is the name of extra bash script you want to execute before feeds update&install.
   # FEEDS_AFTER_SCRIPT is the name of extra bash script you want to execute after feeds update&install.
   # You can modify the initial settings of your firmware through these two scripts. If this is what you need,
