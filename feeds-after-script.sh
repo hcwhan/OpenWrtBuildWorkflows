@@ -1,6 +1,18 @@
 #!/bin/bash
 
+echo 1
+pwd
+ls -al
 
+echo 2
+cd ../
+pwd
+ls -al
+
+echo 3
+cd ./openwrt/
+pwd
+ls -al
 
 # feeds-hcwhan start
 mv ../feeds-hcwhan/                                                   ./package/feeds/
