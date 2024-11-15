@@ -78,8 +78,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet/ /usr/local/lib/android/ /opt/ghc/
-          # sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-          sudo -E apt -qq install git
+          sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           # sudo -E apt -qq update
           # sudo -E apt -qq install $BUILD_DEPENDS
           sudo -E apt -qq autoremove --purge
