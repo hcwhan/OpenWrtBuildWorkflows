@@ -15,7 +15,9 @@ pwd
 ls -al
 
 # feeds-hcwhan start
-mv ../feeds-hcwhan/                                                   ./package/feeds/
+cd ../
+mv ./feeds-hcwhan/                                                   ./package/feeds/
+cd ./openwrt/
 # feeds-hcwhan end
 
 
@@ -54,5 +56,7 @@ cd ../../
 
 
 # miniupnpd start
-mv ../feeds/miniupnpd/301-change-log.patch                           ./feeds/packages/net/miniupnpd/patches/
+cd ../
+mv ./feeds/miniupnpd/301-change-log.patch                            ./feeds/packages/net/miniupnpd/patches/
+cd ./openwrt/
 # miniupnpd end
