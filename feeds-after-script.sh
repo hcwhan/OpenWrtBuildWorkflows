@@ -34,12 +34,12 @@ cd ./openwrt/
 # miniupnpd end
 
 
-# tailscale start
-rm -rf ./feeds/packages/net/tailscale
-cd ../
-mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
-cd ./openwrt/
-# tailscale end
+# # tailscale start
+# rm -rf ./feeds/packages/net/tailscale
+# cd ../
+# mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
+# cd ./openwrt/
+# # tailscale end
 
 
 
