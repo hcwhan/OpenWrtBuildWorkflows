@@ -26,6 +26,23 @@ git clone https://github.com/asvow/luci-app-tailscale                ./package/f
 # luci-app-tailscale  end
 
 
+
+# miniupnpd start
+cd ../
+mv ./feeds/miniupnpd/301-change-log.patch                            ./openwrt/feeds/packages/net/miniupnpd/patches/
+cd ./openwrt/
+# miniupnpd end
+
+
+# tailscale start
+rm -rf ./feeds/packages/net/tailscale
+cd ../
+mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
+cd ./openwrt/
+# tailscale end
+
+
+
 # change string start
 cd ./feeds/luci/
 
@@ -40,10 +57,3 @@ sed -i 's/\t\t"order": 59,//'                                        ./applicati
 
 cd ../../
 # change string end
-
-
-# miniupnpd start
-cd ../
-mv ./feeds/miniupnpd/301-change-log.patch                            ./openwrt/feeds/packages/net/miniupnpd/patches/
-cd ./openwrt/
-# miniupnpd end
