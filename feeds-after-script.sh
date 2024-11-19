@@ -46,6 +46,8 @@ cd ./openwrt/
 # change string start
 cd ./feeds/luci/
 
+sed -i 's/admin\/vpn\/zerotier/admin\/services\/zerotier/'           ./applications/luci-app-zerotier/root/usr/share/luci/menu.d/luci-app-zerotier.json
+
 sed -i 's/msgstr "CPU 性能优化调节"/msgstr "CPU 频率"/'                 ./applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po
 sed -i 's/msgstr "CPU 性能优化调节设置"/msgstr "CPU 频率设置"/'          ./applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po
 
