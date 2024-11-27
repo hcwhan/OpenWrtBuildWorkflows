@@ -19,6 +19,22 @@ sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                ./package/f
 # luci-app-mosdns  end
 
 
+# golang start
+rm -rf ./feeds/packages/lang/golang
+cd ../
+mv ./feeds/golang                                                    ./openwrt/feeds/packages/lang/golang
+cd ./openwrt/
+# golang end
+
+
+# tailscale start
+rm -rf ./feeds/packages/net/tailscale
+cd ../
+mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
+cd ./openwrt/
+# tailscale end
+
+
 # luci-app-tailscale start
 sed -i '/\/etc\/init\.d\/tailscale/d;/\/etc\/config\/tailscale/d;'   ./feeds/packages/net/tailscale/Makefile
 
@@ -32,14 +48,6 @@ cd ../
 mv ./feeds/miniupnpd/301-change-log.patch                            ./openwrt/feeds/packages/net/miniupnpd/patches/
 cd ./openwrt/
 # miniupnpd end
-
-
-# # tailscale start
-# rm -rf ./feeds/packages/net/tailscale
-# cd ../
-# mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
-# cd ./openwrt/
-# # tailscale end
 
 
 
