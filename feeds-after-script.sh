@@ -19,6 +19,7 @@ sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                ./package/f
 # luci-app-mosdns end
 
 
+git --version
 # golang start
 rm -rf ./feeds/packages/lang/golang
 cd ../
