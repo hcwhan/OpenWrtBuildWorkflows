@@ -16,7 +16,7 @@ git clone https://github.com/sbwml/luci-app-mosdns -b v5             ./package/f
 git clone https://github.com/sbwml/v2ray-geodata                     ./package/feeds/feeds-hcwhan/v2ray-geodata
 
 sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                ./package/feeds/feeds-hcwhan/mosdns/luci-app-mosdns/root/etc/mosdns/config_custom.yaml
-# luci-app-mosdns  end
+# luci-app-mosdns end
 
 
 # golang start
@@ -39,7 +39,7 @@ cd ./openwrt/
 sed -i '/\/etc\/init\.d\/tailscale/d;/\/etc\/config\/tailscale/d;'   ./feeds/packages/net/tailscale/Makefile
 
 git clone https://github.com/asvow/luci-app-tailscale                ./package/feeds/feeds-hcwhan/luci-app-tailscale
-# luci-app-tailscale  end
+# luci-app-tailscale end
 
 
 
