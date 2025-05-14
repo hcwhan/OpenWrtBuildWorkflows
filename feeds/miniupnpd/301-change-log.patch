@@ -8,3 +8,4 @@
  			ext_ip_addr[0] = '\0';
  		}
  	}
+ #else
