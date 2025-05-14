@@ -1,11 +1,7 @@
 --- a/upnpsoap.c
 +++ b/upnpsoap.c
-@@ -348,7 +348,7 @@ GetExternalIPAddress(struct upnphttp * h
+@@ -348,3 +348,3 @@ GetExternalIPAddress(struct upnphttp * h
  			ext_ip_addr[0] = '\0';
  		} else if (addr_is_reserved(&addr)) {
 -			syslog(LOG_NOTICE, "private/reserved address %s is not suitable for external IP", ext_ip_addr);
 +			syslog(LOG_DEBUG, "private/reserved address %s is not suitable for external IP", ext_ip_addr);
- 			ext_ip_addr[0] = '\0';
- 		}
- 	}
- #else
