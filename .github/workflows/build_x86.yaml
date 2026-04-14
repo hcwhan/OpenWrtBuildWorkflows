@@ -119,6 +119,12 @@ jobs:
           cd openwrt/
           $GITHUB_WORKSPACE/$FEEDS_AFTER_SCRIPT
 
+      - name: Update feeds Again
+        run: cd openwrt/ && ./scripts/feeds update -a
+
+      - name: Install feeds Again
+        run: cd openwrt/ && ./scripts/feeds install -a
+
       - name: Copy build config file
         run: |
           [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
