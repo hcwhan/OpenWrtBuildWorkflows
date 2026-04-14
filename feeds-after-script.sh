@@ -22,16 +22,19 @@ sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                ./package/f
 git --version
 # golang start
 rm -rf ./feeds/packages/lang/golang
+rm -rf ./package/feeds/packages/golang
+rm -rf ./package/feeds/packages/golang1*
+rm -rf ./package/feeds/packages/golang-*
 cd ../
 mv ./feeds/golang                                                    ./openwrt/feeds/packages/lang/golang
 cd ./openwrt/
 ./scripts/feeds update packages
-./scripts/feeds install golang1.26
 # golang end
 
 
 # tailscale start
 rm -rf ./feeds/packages/net/tailscale
+rm -rf ./package/feeds/packages/tailscale
 cd ../
 mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
 cd ./openwrt/
