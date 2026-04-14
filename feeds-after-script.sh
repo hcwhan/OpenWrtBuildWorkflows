@@ -25,6 +25,7 @@ rm -rf ./feeds/packages/lang/golang
 cd ../
 mv ./feeds/golang                                                    ./openwrt/feeds/packages/lang/golang
 cd ./openwrt/
+./scripts/feeds update packages
 ./scripts/feeds install golang1.26
 # golang end
 
@@ -34,6 +35,7 @@ rm -rf ./feeds/packages/net/tailscale
 cd ../
 mv ./feeds/tailscale                                                 ./openwrt/feeds/packages/net/tailscale
 cd ./openwrt/
+./scripts/feeds update packages
 # tailscale end
 
 
