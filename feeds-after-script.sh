@@ -46,7 +46,7 @@ git clone https://github.com/asvow/luci-app-tailscale                ./package/f
 
 # miniupnpd start
 cd ../
-mv ./feeds/miniupnpd/301-change-log.patch                            ./openwrt/feeds/packages/net/miniupnpd/patches/
+mv ./feeds/miniupnpd/902-change-log.patch                            ./openwrt/feeds/packages/net/miniupnpd/patches/
 cd ./openwrt/
 # miniupnpd end
 
