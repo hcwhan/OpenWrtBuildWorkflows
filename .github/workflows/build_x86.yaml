@@ -49,6 +49,7 @@ env:
   # You can modify the initial settings of your firmware through these two scripts. If this is what you need,
   # please upload your scripts to the root directory of your workflow repo.
   FEEDS_BEFORE_SCRIPT: feeds-before-script.sh
+  FEEDS_INSERT_SCRIPT: feeds-insert-script.sh
   FEEDS_AFTER_SCRIPT: feeds-after-script.sh
   # STORE_PRODUCTS determine whether to upload all compilation products to workflow artifacts.
   # Not only firmwires, all compiled packages will be here, including compiled but not solidified into firmware.
@@ -103,6 +104,12 @@ jobs:
       - name: Update feeds
         run: cd openwrt/ && ./scripts/feeds update -a
 
+      - name: Run feeds-insert-script
+        run: |
+          chmod +x $FEEDS_INSERT_SCRIPT
+          cd openwrt/
+          $GITHUB_WORKSPACE/$FEEDS_INSERT_SCRIPT
+
       - name: Install feeds
         run: cd openwrt/ && ./scripts/feeds install -a
 
@@ -111,12 +118,6 @@ jobs:
           chmod +x $FEEDS_AFTER_SCRIPT
           cd openwrt/
           $GITHUB_WORKSPACE/$FEEDS_AFTER_SCRIPT
-
-      - name: Update feeds Again
-        run: cd openwrt/ && ./scripts/feeds update -a
-
-      - name: Install feeds Again
-        run: cd openwrt/ && ./scripts/feeds install -a
 
       - name: Copy build config file
         run: |
