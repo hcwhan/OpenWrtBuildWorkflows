@@ -25,6 +25,7 @@ rm -rf ./feeds/packages/lang/golang
 cd ../
 mv ./feeds/golang                                                    ./openwrt/feeds/packages/lang/golang
 cd ./openwrt/
+./scripts/feeds install golang1.26
 # golang end
 
 
