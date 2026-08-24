@@ -1,16 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
+# openwrt/ is a symlink to /workdir/openwrt in CI, so ../ does not reach the workflow repo.
+WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
+
 
 # golang start
 rm -rf ./feeds/packages/lang/golang
-mv ../feeds-master/golang                                            ./feeds/packages/lang/golang
+mv "$WORKFLOW_ROOT/feeds-master/golang"                              ./feeds/packages/lang/golang
 # golang end
 
 
 # tailscale start
 rm -rf ./feeds/packages/net/tailscale
-mv ../feeds-master/tailscale                                         ./feeds/packages/net/tailscale
+mv "$WORKFLOW_ROOT/feeds-master/tailscale"                           ./feeds/packages/net/tailscale
 
 TAILSCALE_MAKEFILE='./feeds/packages/net/tailscale/Makefile'
 
@@ -30,7 +33,7 @@ sed -i '/\/etc\/config\/tailscale/d'                                 "$TAILSCALE
 
 # zerotier start
 rm -rf ./feeds/packages/net/zerotier
-mv ../feeds-master/zerotier                                          ./feeds/packages/net/zerotier
+mv "$WORKFLOW_ROOT/feeds-master/zerotier"                            ./feeds/packages/net/zerotier
 # zerotier end
 
 
@@ -39,7 +42,7 @@ ZEROTIER_LUCI_SRC='./feeds/luci/applications/luci-app-zerotier'
 ZEROTIER_MENU_JSON="$ZEROTIER_LUCI_SRC/root/usr/share/luci/menu.d/luci-app-zerotier.json"
 
 rm -rf "$ZEROTIER_LUCI_SRC"
-mv ../feeds-master/luci-app-zerotier                                 ./feeds/luci/applications/luci-app-zerotier
+mv "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                   ./feeds/luci/applications/luci-app-zerotier
 
 grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
 	echo "ERROR: 'admin/vpn/zerotier' not found in $ZEROTIER_MENU_JSON" >&2
@@ -51,12 +54,12 @@ sed -i 's/admin\/vpn\/zerotier/admin\/services\/zerotier/g'          "$ZEROTIER_
 
 # feeds-hcwhan start
 mkdir -p ./package/feeds/
-mv ../feeds-hcwhan/                                                   ./package/feeds/feeds-hcwhan/
+mv "$WORKFLOW_ROOT/feeds-hcwhan/"                                    ./package/feeds/feeds-hcwhan/
 # feeds-hcwhan end
 
 
 # miniupnpd start
-mv ../feeds-patch/miniupnpd/902-change-log.patch                     ./feeds/packages/net/miniupnpd/patches/
+mv "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/packages/net/miniupnpd/patches/
 # miniupnpd end
 
 
