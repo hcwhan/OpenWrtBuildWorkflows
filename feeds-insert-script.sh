@@ -115,6 +115,53 @@ rm -rf "$OPENCLASH_TMP"
 # luci-app-openclash end
 
 
+# menu order start
+# Drop top-level order so LuCI defaults to 1000 and sorts siblings by name.
+# UPnP has no top-level order; no change needed.
+FILEBROWSER_MENU='./feeds/luci/applications/luci-app-filebrowser/root/usr/share/luci/menu.d/luci-app-filebrowser.json'
+grep -qF '"title": "FileBrowser",' "$FILEBROWSER_MENU" || {
+	echo "ERROR: '\"title\": \"FileBrowser\",' not found in $FILEBROWSER_MENU" >&2
+	exit 1
+}
+sed -i '/"order": 30,/d'                                             "$FILEBROWSER_MENU"
+
+MOSDNS_MENU='./package/feeds/feeds-hcwhan/mosdns/luci-app-mosdns/root/usr/share/luci/menu.d/luci-app-mosdns.json'
+grep -qF '"title": "MosDNS",' "$MOSDNS_MENU" || {
+	echo "ERROR: '\"title\": \"MosDNS\",' not found in $MOSDNS_MENU" >&2
+	exit 1
+}
+sed -i '/"title": "MosDNS",/{n;/"order":/d;}'                       "$MOSDNS_MENU"
+
+OPENCLASH_LUA='./feeds/luci/applications/luci-app-openclash/luasrc/controller/openclash.lua'
+grep -qF 'page = entry({"admin", "services", "openclash"}' "$OPENCLASH_LUA" || {
+	echo "ERROR: openclash top-level entry not found in $OPENCLASH_LUA" >&2
+	exit 1
+}
+sed -i '/page = entry({"admin", "services", "openclash"}/s/, 50)/)/'     "$OPENCLASH_LUA"
+
+TAILSCALE_MENU='./package/feeds/feeds-hcwhan/luci-app-tailscale/root/usr/share/luci/menu.d/luci-app-tailscale.json'
+grep -qF '"title": "Tailscale",' "$TAILSCALE_MENU" || {
+	echo "ERROR: '\"title\": \"Tailscale\",' not found in $TAILSCALE_MENU" >&2
+	exit 1
+}
+sed -i '/"title": "Tailscale",/{n;/"order":/d;}'                       "$TAILSCALE_MENU"
+
+WOLPLUS_LUA='./package/feeds/feeds-hcwhan/luci-app-wolplus/luasrc/controller/wolplus.lua'
+grep -qF 'entry({"admin", "services", "wolplus"}, cbi("wolplus")' "$WOLPLUS_LUA" || {
+	echo "ERROR: wolplus top-level entry not found in $WOLPLUS_LUA" >&2
+	exit 1
+}
+sed -i '/entry({"admin", "services", "wolplus"}, cbi("wolplus")/s/, 95)/)/' "$WOLPLUS_LUA"
+
+ZEROTIER_MENU='./feeds/luci/applications/luci-app-zerotier/root/usr/share/luci/menu.d/luci-app-zerotier.json'
+grep -qF '"title": "ZeroTier",' "$ZEROTIER_MENU" || {
+	echo "ERROR: '\"title\": \"ZeroTier\",' not found in $ZEROTIER_MENU" >&2
+	exit 1
+}
+sed -i '/"title": "ZeroTier",/{n;/"order":/d;}'                       "$ZEROTIER_MENU"
+# menu order end
+
+
 
 # change string start
 sed -i 's/msgstr "CPU 性能优化调节"/msgstr "CPU 频率"/'                 ./feeds/luci/applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po
