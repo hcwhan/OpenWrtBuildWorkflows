@@ -7,13 +7,13 @@ WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 
 # golang start
 rm -rf ./feeds/packages/lang/golang
-mv "$WORKFLOW_ROOT/feeds-master/golang"                              ./feeds/packages/lang/golang
+cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/packages/lang/golang
 # golang end
 
 
 # tailscale start
 rm -rf ./feeds/packages/net/tailscale
-mv "$WORKFLOW_ROOT/feeds-master/tailscale"                           ./feeds/packages/net/tailscale
+cp -a "$WORKFLOW_ROOT/feeds-master/tailscale"                        ./feeds/packages/net/tailscale
 
 TAILSCALE_MAKEFILE='./feeds/packages/net/tailscale/Makefile'
 
@@ -33,7 +33,7 @@ sed -i '/\/etc\/config\/tailscale/d'                                 "$TAILSCALE
 
 # zerotier start
 rm -rf ./feeds/packages/net/zerotier
-mv "$WORKFLOW_ROOT/feeds-master/zerotier"                            ./feeds/packages/net/zerotier
+cp -a "$WORKFLOW_ROOT/feeds-master/zerotier"                         ./feeds/packages/net/zerotier
 # zerotier end
 
 
@@ -42,7 +42,7 @@ ZEROTIER_LUCI_SRC='./feeds/luci/applications/luci-app-zerotier'
 ZEROTIER_MENU_JSON="$ZEROTIER_LUCI_SRC/root/usr/share/luci/menu.d/luci-app-zerotier.json"
 
 rm -rf "$ZEROTIER_LUCI_SRC"
-mv "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                   ./feeds/luci/applications/luci-app-zerotier
+cp -a "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                ./feeds/luci/applications/luci-app-zerotier
 
 grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
 	echo "ERROR: 'admin/vpn/zerotier' not found in $ZEROTIER_MENU_JSON" >&2
@@ -50,40 +50,6 @@ grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
 }
 sed -i 's/admin\/vpn\/zerotier/admin\/services\/zerotier/g'          "$ZEROTIER_MENU_JSON"
 # luci-app-zerotier end
-
-
-# feeds-hcwhan start
-mkdir -p ./package/feeds/
-mv "$WORKFLOW_ROOT/feeds-hcwhan/"                                    ./package/feeds/feeds-hcwhan/
-# feeds-hcwhan end
-
-
-# miniupnpd start
-mv "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/packages/net/miniupnpd/patches/
-# miniupnpd end
-
-
-
-# luci-app-tailscale start
-git clone https://github.com/asvow/luci-app-tailscale                ./package/feeds/feeds-hcwhan/luci-app-tailscale
-
-sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'        ./package/feeds/feeds-hcwhan/luci-app-tailscale/root/usr/share/luci/menu.d/luci-app-tailscale.json
-# luci-app-tailscale end
-
-
-# luci-app-mosdns start
-rm -rf ./feeds/packages/net/v2ray-geodata
-
-git clone https://github.com/sbwml/luci-app-mosdns -b v5             ./package/feeds/feeds-hcwhan/mosdns
-git clone https://github.com/sbwml/v2ray-geodata                     ./package/feeds/feeds-hcwhan/v2ray-geodata
-
-MOSDNS_CONFIG='./package/feeds/feeds-hcwhan/mosdns/luci-app-mosdns/root/etc/mosdns/config_custom.yaml'
-grep -qF -- '- exec: prefer_ipv4' "$MOSDNS_CONFIG" || {
-	echo "ERROR: '- exec: prefer_ipv4' not found in $MOSDNS_CONFIG" >&2
-	exit 1
-}
-sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                "$MOSDNS_CONFIG"
-# luci-app-mosdns end
 
 
 # luci-app-openclash start
@@ -115,51 +81,15 @@ rm -rf "$OPENCLASH_TMP"
 # luci-app-openclash end
 
 
-# menu order start
-# Drop top-level order so LuCI defaults to 1000 and sorts siblings by name.
-# UPnP has no top-level order; no change needed.
-FILEBROWSER_MENU='./feeds/luci/applications/luci-app-filebrowser/root/usr/share/luci/menu.d/luci-app-filebrowser.json'
-grep -qF '"title": "FileBrowser",' "$FILEBROWSER_MENU" || {
-	echo "ERROR: '\"title\": \"FileBrowser\",' not found in $FILEBROWSER_MENU" >&2
-	exit 1
-}
-sed -i '/"order": 30,/d'                                             "$FILEBROWSER_MENU"
+# v2ray-geodata start
+# Remove feed copy before install to avoid conflict with feeds-hcwhan/v2ray-geodata.
+rm -rf ./feeds/packages/net/v2ray-geodata
+# v2ray-geodata end
 
-MOSDNS_MENU='./package/feeds/feeds-hcwhan/mosdns/luci-app-mosdns/root/usr/share/luci/menu.d/luci-app-mosdns.json'
-grep -qF '"title": "MosDNS",' "$MOSDNS_MENU" || {
-	echo "ERROR: '\"title\": \"MosDNS\",' not found in $MOSDNS_MENU" >&2
-	exit 1
-}
-sed -i '/"title": "MosDNS",/{n;/"order":/d;}'                       "$MOSDNS_MENU"
 
-OPENCLASH_LUA='./feeds/luci/applications/luci-app-openclash/luasrc/controller/openclash.lua'
-grep -qF 'page = entry({"admin", "services", "openclash"}' "$OPENCLASH_LUA" || {
-	echo "ERROR: openclash top-level entry not found in $OPENCLASH_LUA" >&2
-	exit 1
-}
-sed -i '/page = entry({"admin", "services", "openclash"}/s/, 50)/)/'     "$OPENCLASH_LUA"
-
-TAILSCALE_MENU='./package/feeds/feeds-hcwhan/luci-app-tailscale/root/usr/share/luci/menu.d/luci-app-tailscale.json'
-grep -qF '"title": "Tailscale",' "$TAILSCALE_MENU" || {
-	echo "ERROR: '\"title\": \"Tailscale\",' not found in $TAILSCALE_MENU" >&2
-	exit 1
-}
-sed -i '/"title": "Tailscale",/{n;/"order":/d;}'                       "$TAILSCALE_MENU"
-
-WOLPLUS_LUA='./package/feeds/feeds-hcwhan/luci-app-wolplus/luasrc/controller/wolplus.lua'
-grep -qF 'entry({"admin", "services", "wolplus"}, cbi("wolplus")' "$WOLPLUS_LUA" || {
-	echo "ERROR: wolplus top-level entry not found in $WOLPLUS_LUA" >&2
-	exit 1
-}
-sed -i '/entry({"admin", "services", "wolplus"}, cbi("wolplus")/s/, 95)/)/' "$WOLPLUS_LUA"
-
-ZEROTIER_MENU='./feeds/luci/applications/luci-app-zerotier/root/usr/share/luci/menu.d/luci-app-zerotier.json'
-grep -qF '"title": "ZeroTier",' "$ZEROTIER_MENU" || {
-	echo "ERROR: '\"title\": \"ZeroTier\",' not found in $ZEROTIER_MENU" >&2
-	exit 1
-}
-sed -i '/"title": "ZeroTier",/{n;/"order":/d;}'                       "$ZEROTIER_MENU"
-# menu order end
+# miniupnpd start
+cp "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/packages/net/miniupnpd/patches/
+# miniupnpd end
 
 
 
