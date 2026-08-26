@@ -81,10 +81,11 @@ rm -rf "$OPENCLASH_TMP"
 # luci-app-openclash end
 
 
-# v2ray-geodata start
-# Remove feed copy before install to avoid conflict with feeds-hcwhan/v2ray-geodata.
+# mosdns / v2ray-geodata start
+# Remove official feed copies before install to avoid conflict with feeds-hcwhan (sbwml v5).
+rm -rf ./feeds/packages/net/mosdns
 rm -rf ./feeds/packages/net/v2ray-geodata
-# v2ray-geodata end
+# mosdns / v2ray-geodata end
 
 
 # miniupnpd start
