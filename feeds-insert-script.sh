@@ -14,20 +14,6 @@ cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/pac
 # tailscale start
 rm -rf ./feeds/packages/net/tailscale
 cp -a "$WORKFLOW_ROOT/feeds-master/tailscale"                        ./feeds/packages/net/tailscale
-
-TAILSCALE_MAKEFILE='./feeds/packages/net/tailscale/Makefile'
-
-grep -qF '/etc/init.d/tailscale' "$TAILSCALE_MAKEFILE" || {
-	echo "ERROR: '/etc/init.d/tailscale' not found in $TAILSCALE_MAKEFILE" >&2
-	exit 1
-}
-sed -i '/\/etc\/init\.d\/tailscale/d'                                "$TAILSCALE_MAKEFILE"
-
-grep -qF '/etc/config/tailscale' "$TAILSCALE_MAKEFILE" || {
-	echo "ERROR: '/etc/config/tailscale' not found in $TAILSCALE_MAKEFILE" >&2
-	exit 1
-}
-sed -i '/\/etc\/config\/tailscale/d'                                 "$TAILSCALE_MAKEFILE"
 # tailscale end
 
 

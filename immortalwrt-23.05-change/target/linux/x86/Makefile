@@ -25,7 +25,7 @@ DEFAULT_PACKAGES += alsa-utils partx-utils mkf2fs fdisk kmod-button-hotplug kmod
 		    kmod-usb-net-rtl8150 kmod-usb-net-rtl8152-vendor grub2-bios-setup intel-igpu-firmware-dmc \
 		    autocore automount \
       ca-certificates coreutils-nohup \
-      luci-mod-rpc luci-app-autoreboot luci-app-filebrowser luci-app-filetransfer luci-app-ttyd luci-app-upnp luci-app-wolplus luci-app-zerotier luci-app-tailscale luci-theme-argon \
+      luci-mod-rpc luci-app-autoreboot luci-app-filebrowser luci-app-filetransfer luci-app-ttyd luci-app-upnp luci-app-wolplus luci-app-zerotier luci-app-tailscale-community luci-theme-argon \
       htop coreutils curl vsftpd-tls openssh-sftp-server wget-ssl iperf3 ipset speedtest-go tcpdump tcping unzip ncdu \
       pciutils kmod-bnx2x luci-app-mosdns luci-app-openclash
 

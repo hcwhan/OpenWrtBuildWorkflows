@@ -6,20 +6,27 @@ WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 FEEDS_HCWHAN="$WORKFLOW_ROOT/feeds-hcwhan"
 
 
-# luci-app-tailscale start
-rm -rf "$FEEDS_HCWHAN/luci-app-tailscale"
-git clone https://github.com/asvow/luci-app-tailscale                "$FEEDS_HCWHAN/luci-app-tailscale" || {
-	echo "ERROR: failed to clone luci-app-tailscale" >&2
+# luci-app-tailscale-community start
+TAILSCALE_COMMUNITY_SRC=/tmp/luci-app-tailscale-community-src
+rm -rf "$FEEDS_HCWHAN/luci-app-tailscale-community" "$TAILSCALE_COMMUNITY_SRC"
+git clone --depth 1 https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community "$TAILSCALE_COMMUNITY_SRC" || {
+	echo "ERROR: failed to clone luci-app-tailscale-community" >&2
 	exit 1
 }
+test -d "$TAILSCALE_COMMUNITY_SRC/luci-app-tailscale-community" || {
+	echo "ERROR: luci-app-tailscale-community package dir not found" >&2
+	exit 1
+}
+cp -a "$TAILSCALE_COMMUNITY_SRC/luci-app-tailscale-community"          "$FEEDS_HCWHAN/luci-app-tailscale-community"
+rm -rf "$TAILSCALE_COMMUNITY_SRC"
 
-TAILSCALE_MENU_JSON="$FEEDS_HCWHAN/luci-app-tailscale/root/usr/share/luci/menu.d/luci-app-tailscale.json"
+TAILSCALE_MENU_JSON="$FEEDS_HCWHAN/luci-app-tailscale-community/root/usr/share/luci/menu.d/luci-app-tailscale-community.json"
 grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 	echo "ERROR: 'admin/vpn/tailscale' not found in $TAILSCALE_MENU_JSON" >&2
 	exit 1
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
-# luci-app-tailscale end
+# luci-app-tailscale-community end
 
 
 # luci-app-mosdns start
@@ -75,7 +82,7 @@ grep -qF 'page = entry({"admin", "services", "openclash"}' "$OPENCLASH_LUA" || {
 }
 sed -i '/page = entry({"admin", "services", "openclash"}/s/, 50)/)/'     "$OPENCLASH_LUA"
 
-TAILSCALE_MENU='./package/feeds/feeds-hcwhan/luci-app-tailscale/root/usr/share/luci/menu.d/luci-app-tailscale.json'
+TAILSCALE_MENU='./package/feeds/feeds-hcwhan/luci-app-tailscale-community/root/usr/share/luci/menu.d/luci-app-tailscale-community.json'
 grep -qF '"title": "Tailscale",' "$TAILSCALE_MENU" || {
 	echo "ERROR: '\"title\": \"Tailscale\",' not found in $TAILSCALE_MENU" >&2
 	exit 1
