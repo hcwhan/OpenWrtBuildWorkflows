@@ -19,7 +19,7 @@ DEFAULT_PACKAGES += \
 	uboot-envtools automount losetup \
 	autocore luci-app-cpufreq \
       ca-certificates coreutils-nohup \
-      luci-mod-rpc luci-app-autoreboot luci-app-filebrowser luci-app-filetransfer luci-app-ttyd luci-app-upnp luci-app-wolplus luci-app-zerotier luci-app-tailscale luci-theme-argon \
+      luci-mod-rpc luci-app-autoreboot luci-app-filebrowser luci-app-filetransfer luci-app-ttyd luci-app-upnp luci-app-wolplus luci-app-zerotier luci-app-tailscale-community luci-theme-argon \
       htop coreutils curl vsftpd-tls openssh-sftp-server wget-ssl iperf3 ipset speedtest-go tcpdump tcping unzip ncdu \
       luci-app-mosdns luci-app-openclash
 
