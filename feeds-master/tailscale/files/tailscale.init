@@ -29,7 +29,7 @@ start_service() {
   # Starting with v1.48.1 ENV variable is required to enable use of iptables / nftables.
   # Use nftables by default - can be changed to 'iptables' in tailscale config
   procd_set_param env TS_DEBUG_FIREWALL_MODE="$fw_mode"
-
+  
   # Disable logging to log.tailscale.com
   procd_append_param env TS_NO_LOGS_NO_SUPPORT=true
 
