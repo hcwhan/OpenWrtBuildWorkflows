@@ -30,8 +30,8 @@ TAILSCALE_MAKEFILE="$TAILSCALE_PKG/Makefile"
 TAILSCALE_INIT="$TAILSCALE_PKG/files/tailscale.init"
 
 # Build golang/host first so tailscale uses the feeds Go instead of the CI host Go.
-grep -qF 'PKG_BUILD_DIR:=$(BUILD_DIR)/tailscale-$(PKG_VERSION)' "$TAILSCALE_MAKEFILE" || {
-	echo "ERROR: 'PKG_BUILD_DIR:=\$(BUILD_DIR)/tailscale-\$(PKG_VERSION)' not found in $TAILSCALE_MAKEFILE" >&2
+test "$(grep -c '^PKG_BUILD_DIR:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -qF 'PKG_BUILD_DIR:=$(BUILD_DIR)/tailscale-$(PKG_VERSION)' "$TAILSCALE_MAKEFILE" || {
+	echo "ERROR: expected exactly one 'PKG_BUILD_DIR:=\$(BUILD_DIR)/tailscale-\$(PKG_VERSION)' in $TAILSCALE_MAKEFILE" >&2
 	exit 1
 }
 sed -i '/^PKG_BUILD_DIR:=/a PKG_BUILD_DEPENDS:=golang/host'            "$TAILSCALE_MAKEFILE"
