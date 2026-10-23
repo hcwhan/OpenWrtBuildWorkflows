@@ -39,7 +39,7 @@ sed -i 's/admin\/vpn\/zerotier/admin\/services\/zerotier/g'          "$ZEROTIER_
 
 
 # luci-app-openclash start
-OPENCLASH_TAG='v0.47.156'
+OPENCLASH_TAG='v0.48.002'
 OPENCLASH_SRC='./feeds/luci/applications/luci-app-openclash'
 OPENCLASH_TMP='/tmp/openclash-src'
 
