@@ -74,6 +74,21 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 	exit 1
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
+
+# tailscale is built with ts_omit_clientupdate, so a saved AutoUpdate.Apply=true makes every 'tailscale set' fail.
+# Always pass --auto-update=false (the only edit tailscaled accepts in that state) so the settings get applied.
+TAILSCALE_SETTINGS_INIT="$FEEDS_HCWHAN/luci-app-tailscale-community/root/etc/init.d/tailscale-settings"
+grep -qF -- '--auto-update' "$TAILSCALE_SETTINGS_INIT" && {
+	echo "ERROR: '--auto-update' already present in $TAILSCALE_SETTINGS_INIT; upstream changed, review and drop this patch" >&2
+	exit 1
+}
+test "$(grep -cxF $'\tset -- set' "$TAILSCALE_SETTINGS_INIT")" = 1 || {
+	echo "ERROR: expected exactly one 'set -- set' line in $TAILSCALE_SETTINGS_INIT" >&2
+	exit 1
+}
+sed -i '/^\tset -- set$/r /dev/stdin'                                     "$TAILSCALE_SETTINGS_INIT" <<'EOF'
+	set -- "$@" --auto-update=false
+EOF
 # luci-app-tailscale-community end
 
 
