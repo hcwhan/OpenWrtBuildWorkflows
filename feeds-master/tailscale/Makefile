@@ -9,12 +9,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tailscale
-PKG_VERSION:=1.102.3
+PKG_VERSION:=1.104.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/tailscale/tailscale/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=0e94d961c31ce7d33e8b7ce4ac6fdbec83ee5658784eed69eb7fce300729d717
+PKG_HASH:=4c1c806e16507414a1459afcdc399f6a1323c21a1ac90f07bea0465fd8fd7e1d
 
 PKG_MAINTAINER:=GuNan <gunanovo@gmail.com>
 PKG_LICENSE:=BSD-3-Clause
@@ -29,7 +29,9 @@ PKG_BUILD_FLAGS:=no-mips16
 GO_PKG:=tailscale.com/cmd/tailscaled
 GO_PKG_LDFLAGS:=-s -w -X 'tailscale.com/version.longStamp=$(PKG_VERSION)-$(PKG_RELEASE) (OpenWrt-UPX)'
 GO_PKG_LDFLAGS_X:=tailscale.com/version.shortStamp=$(PKG_VERSION)
-GO_PKG_TAGS:=ts_include_cli,ts_omit_aws,ts_omit_bird,ts_omit_completion,ts_omit_kube,ts_omit_systray,ts_omit_taildrop,ts_omit_tap,ts_omit_tpm,ts_omit_relayserver,ts_omit_capture,ts_omit_syspolicy,ts_omit_debugeventbus,ts_omit_webclient
+# Note: keep ts_omit_relayserver out of this list - it removes the Relay server
+# feature (Peer Relay). It was removed in 1.102.4-r2 after issue #161.
+GO_PKG_TAGS:=ts_include_cli,ts_omit_aws,ts_omit_bird,ts_omit_completion,ts_omit_kube,ts_omit_systray,ts_omit_taildrop,ts_omit_tap,ts_omit_tpm,ts_omit_capture,ts_omit_syspolicy,ts_omit_debugeventbus,ts_omit_webclient,ts_omit_clientupdate
 
 ifneq ($(filter mips64% riscv64% loongarch64%,$(ARCH)),)
   DISABLE_UPX:=1
