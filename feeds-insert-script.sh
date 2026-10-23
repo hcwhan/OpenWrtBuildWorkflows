@@ -45,7 +45,7 @@ OPENCLASH_TMP='/tmp/openclash-src'
 
 echo "Using OpenClash tag: $OPENCLASH_TAG"
 
-rm -rf "$OPENCLASH_SRC"
+rm -rf "$OPENCLASH_SRC" "$OPENCLASH_TMP"
 
 git clone --depth 1 --branch "$OPENCLASH_TAG" https://github.com/vernesong/OpenClash "$OPENCLASH_TMP" || {
 	echo "ERROR: failed to clone OpenClash $OPENCLASH_TAG" >&2
@@ -57,8 +57,8 @@ test -d "$OPENCLASH_TMP/luci-app-openclash" || {
 	exit 1
 }
 
-grep -qF 'PKG_VERSION:=0.47.156' "$OPENCLASH_TMP/luci-app-openclash/Makefile" || {
-	echo "ERROR: PKG_VERSION:=0.47.156 not found in luci-app-openclash Makefile ($OPENCLASH_TAG)" >&2
+grep -qF "PKG_VERSION:=${OPENCLASH_TAG#v}" "$OPENCLASH_TMP/luci-app-openclash/Makefile" || {
+	echo "ERROR: PKG_VERSION:=${OPENCLASH_TAG#v} not found in luci-app-openclash Makefile ($OPENCLASH_TAG)" >&2
 	exit 1
 }
 
@@ -81,14 +81,33 @@ cp "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/pac
 
 
 # change string start
-sed -i 's/msgstr "CPU 性能优化调节"/msgstr "CPU 频率"/'                 ./feeds/luci/applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po
-sed -i 's/msgstr "CPU 性能优化调节设置"/msgstr "CPU 频率设置"/'          ./feeds/luci/applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po
+CPUFREQ_PO='./feeds/luci/applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po'
+SQM_PO='./feeds/luci/applications/luci-app-sqm/po/zh_Hans/sqm.po'
+SQM_JSON='./feeds/luci/applications/luci-app-sqm/root/usr/share/luci/menu.d/luci-app-sqm.json'
 
-sed -i 's/msgid "SQM QoS"/msgid "SQM"/'                              ./feeds/luci/applications/luci-app-sqm/po/zh_Hans/sqm.po
-sed -i 's/msgstr "SQM 队列管理"/msgstr "队列管理(SQM)"/'                ./feeds/luci/applications/luci-app-sqm/po/zh_Hans/sqm.po
+# Fail if neither the original text nor the already replaced text is found (upstream changed).
+# Accepting the replaced text keeps re-runs on an already patched tree working.
+require_text() {
+	grep -qF -- "$2" "$1" || grep -qF -- "$3" "$1" || {
+		echo "ERROR: '$2' not found in $1" >&2
+		exit 1
+	}
+}
+require_text "$CPUFREQ_PO" 'msgstr "CPU 性能优化调节"'     'msgstr "CPU 频率"'
+require_text "$CPUFREQ_PO" 'msgstr "CPU 性能优化调节设置"'  'msgstr "CPU 频率设置"'
+require_text "$SQM_PO"     'msgid "SQM QoS"'               'msgid "SQM"'
+require_text "$SQM_PO"     'msgstr "SQM 队列管理"'          'msgstr "队列管理(SQM)"'
+require_text "$SQM_JSON"   '"title": "SQM QoS",'           '"title": "SQM",'
+require_text "$SQM_JSON"   $'\t\t"order": 59,'             '"title": "SQM",'
 
-sed -i 's/"title": "SQM QoS",/"title": "SQM",/'                      ./feeds/luci/applications/luci-app-sqm/root/usr/share/luci/menu.d/luci-app-sqm.json
-sed -i 's/\t\t"order": 59,//'                                        ./feeds/luci/applications/luci-app-sqm/root/usr/share/luci/menu.d/luci-app-sqm.json
+sed -i 's/msgstr "CPU 性能优化调节"/msgstr "CPU 频率"/'                 "$CPUFREQ_PO"
+sed -i 's/msgstr "CPU 性能优化调节设置"/msgstr "CPU 频率设置"/'          "$CPUFREQ_PO"
+
+sed -i 's/msgid "SQM QoS"/msgid "SQM"/'                              "$SQM_PO"
+sed -i 's/msgstr "SQM 队列管理"/msgstr "队列管理(SQM)"/'                "$SQM_PO"
+
+sed -i 's/"title": "SQM QoS",/"title": "SQM",/'                      "$SQM_JSON"
+sed -i 's/\t\t"order": 59,//'                                        "$SQM_JSON"
 # change string end
 
 

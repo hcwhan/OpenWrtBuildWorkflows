@@ -32,14 +32,16 @@ sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCA
 # luci-app-mosdns start
 rm -rf "$FEEDS_HCWHAN/mosdns"
 rm -rf "$FEEDS_HCWHAN/v2ray-geodata"
-git clone https://github.com/sbwml/luci-app-mosdns -b v5             "$FEEDS_HCWHAN/mosdns" || {
+git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5   "$FEEDS_HCWHAN/mosdns" || {
 	echo "ERROR: failed to clone luci-app-mosdns (v5)" >&2
 	exit 1
 }
-git clone https://github.com/sbwml/v2ray-geodata                     "$FEEDS_HCWHAN/v2ray-geodata" || {
+git clone --depth 1 https://github.com/sbwml/v2ray-geodata           "$FEEDS_HCWHAN/v2ray-geodata" || {
 	echo "ERROR: failed to clone v2ray-geodata" >&2
 	exit 1
 }
+# Drop nested .git so these clones are not detected as separate repos and not copied into the build tree.
+rm -rf "$FEEDS_HCWHAN/mosdns/.git" "$FEEDS_HCWHAN/v2ray-geodata/.git"
 
 MOSDNS_CONFIG="$FEEDS_HCWHAN/mosdns/luci-app-mosdns/root/etc/mosdns/config_custom.yaml"
 grep -qF -- '- exec: prefer_ipv4' "$MOSDNS_CONFIG" || {
