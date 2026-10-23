@@ -12,8 +12,8 @@ cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/pac
 
 
 # tailscale start
+# Remove official feed copy before install to avoid conflict with feeds-hcwhan (GuNanOvO, cloned in feeds-after-script.sh).
 rm -rf ./feeds/packages/net/tailscale
-cp -a "$WORKFLOW_ROOT/feeds-master/tailscale"                        ./feeds/packages/net/tailscale
 # tailscale end
 
 

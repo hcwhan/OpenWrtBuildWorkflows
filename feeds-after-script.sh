@@ -6,6 +6,54 @@ WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 FEEDS_HCWHAN="$WORKFLOW_ROOT/feeds-hcwhan"
 
 
+# tailscale start
+TAILSCALE_SRC=/tmp/openwrt-tailscale-src
+rm -rf "$FEEDS_HCWHAN/tailscale" "$TAILSCALE_SRC"
+git clone --depth 1 https://github.com/GuNanOvO/openwrt-tailscale -b v1.104.2 "$TAILSCALE_SRC" || {
+	echo "ERROR: failed to clone openwrt-tailscale (v1.104.2)" >&2
+	exit 1
+}
+test -d "$TAILSCALE_SRC/package/tailscale" || {
+	echo "ERROR: package/tailscale not found in openwrt-tailscale" >&2
+	exit 1
+}
+cp -a "$TAILSCALE_SRC/package/tailscale"                               "$FEEDS_HCWHAN/tailscale"
+rm -rf "$TAILSCALE_SRC"
+
+TAILSCALE_MAKEFILE="$FEEDS_HCWHAN/tailscale/Makefile"
+TAILSCALE_INIT="$FEEDS_HCWHAN/tailscale/files/tailscale.init"
+
+# Build golang/host first so tailscale uses the feeds Go instead of the CI host Go.
+grep -qF 'PKG_BUILD_DIR:=$(BUILD_DIR)/tailscale-$(PKG_VERSION)' "$TAILSCALE_MAKEFILE" || {
+	echo "ERROR: 'PKG_BUILD_DIR:=\$(BUILD_DIR)/tailscale-\$(PKG_VERSION)' not found in $TAILSCALE_MAKEFILE" >&2
+	exit 1
+}
+sed -i '/^PKG_BUILD_DIR:=/a PKG_BUILD_DEPENDS:=golang/host'            "$TAILSCALE_MAKEFILE"
+
+# Drop the maintainer-only export of tailscaled into bin/packages (not needed for firmware builds).
+sed -i -e '/\[Maintainer Note\]/d' \
+       -e '/Feel free to remove the next two lines/d' \
+       -e '/可选：以下两行/d' \
+       -e '/\$(TOPDIR)\/bin\/packages/d'                               "$TAILSCALE_MAKEFILE"
+
+# Honor tailscale.settings.service_enabled at boot: when 0, skip start and remove the /etc/rc.d/S80tailscale link.
+# Called via the S80tailscale link, so rc.common's bare disable() would target the wrong name; use the init path.
+test "$(grep -c '^  config_load tailscale$' "$TAILSCALE_INIT")" = 1 || {
+	echo "ERROR: expected exactly one '  config_load tailscale' in $TAILSCALE_INIT" >&2
+	exit 1
+}
+sed -i '/^  config_load tailscale$/r /dev/stdin'                          "$TAILSCALE_INIT" <<'EOF'
+  local service_enabled
+  config_get_bool service_enabled "settings" service_enabled 1
+  if [ "$service_enabled" != 1 ]; then
+    /etc/init.d/tailscale disable
+    logger -t tailscale "service_enabled=0, skip start and remove boot link"
+    return 0
+  fi
+EOF
+# tailscale end
+
+
 # luci-app-tailscale-community start
 TAILSCALE_COMMUNITY_SRC=/tmp/luci-app-tailscale-community-src
 rm -rf "$FEEDS_HCWHAN/luci-app-tailscale-community" "$TAILSCALE_COMMUNITY_SRC"
