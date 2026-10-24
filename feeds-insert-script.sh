@@ -36,6 +36,14 @@ test "$(grep -c '^PKG_BUILD_DIR:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -qF 'PKG_
 }
 sed -i '/^PKG_BUILD_DIR:=/a PKG_BUILD_DEPENDS:=golang/host'            "$TAILSCALE_MAKEFILE"
 
+# ts_omit_clientupdate alone still links tailscale.com/clientupdate via the flash-appliance CLI commands, which keeps CanAutoUpdate() true
+# and stops tailscaled from clearing a saved AutoUpdate.Apply=true at startup. Omit those commands too so the package is dropped.
+test "$(grep -c '^GO_PKG_TAGS:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -q '^GO_PKG_TAGS:=.*ts_omit_clientupdate$' "$TAILSCALE_MAKEFILE" || {
+	echo "ERROR: expected exactly one 'GO_PKG_TAGS:=' line ending with 'ts_omit_clientupdate' in $TAILSCALE_MAKEFILE" >&2
+	exit 1
+}
+sed -i '/^GO_PKG_TAGS:=/s/$/,ts_omit_flashappliance/'                  "$TAILSCALE_MAKEFILE"
+
 # Drop the maintainer-only export of tailscaled into bin/packages (not needed for firmware builds).
 sed -i -e '/\[Maintainer Note\]/d' \
        -e '/Feel free to remove the next two lines/d' \
