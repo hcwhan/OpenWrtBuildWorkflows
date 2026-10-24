@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# tailscale installs subnet routes accepted from other nodes into table 52 (pref 5270), which beats the main table.
+# If another node advertises a subnet that overlaps a local one (e.g. the LAN), it would hijack that LAN.
+# Look up main first at pref 1295 and ignore its default route, so specific local routes always win.
+# Except the tailnet's own ranges (100.64.0.0/10, fd7a:115c:a1e0::/48): pin them to table 52 at pref 1290,
+# or a CGNAT WAN route would swallow all peers.
+# Packets from tailscaled itself (fwmark 0x80000/0xff0000) go to main at pref 1285, before the pin: with an exit node,
+# table 52 has a default route, so the pin would loop them back into tailscale0 (e.g. non-peer CGNAT destinations).
+# All three prefs sit after mwan3's iif rules (pref 1001+) and before tailscale's own rules (5210-5270, or 1310-1370
+# when it detects mwan3 on OpenWrt), so they take effect whether or not tailscale detects mwan3.
+#
+# Added as netifd rule/rule6 sections, not as ip(8) calls in the tailscale init script: netifd flushes every ip rule
+# each time it starts, and tailscaled only restores rules inside its own pref range, so rules added by the init script
+# were lost on a network restart until tailscale was restarted. netifd re-applies its own rules instead.
+#
+# Sections that already exist are left alone, so local edits (e.g. option disabled '1') survive a re-run.
+add_rule() {  # add_rule <section> <rule|rule6> <option=value>...
+	local name="$1" kind="$2" opt
+	shift 2
+	uci -q get "network.$name" > /dev/null && return 0
+	uci set "network.$name=$kind"
+	for opt in "$@"; do
+		uci set "network.$name.$opt"
+	done
+}
+
+add_rule tailscale_local_first  rule  priority=1295 lookup=main suppress_prefixlength=0
+add_rule tailscale_local_first6 rule6 priority=1295 lookup=main suppress_prefixlength=0
+add_rule tailscale_tailnet_pin  rule  priority=1290 dest=100.64.0.0/10 lookup=52
+add_rule tailscale_tailnet_pin6 rule6 priority=1290 dest=fd7a:115c:a1e0::/48 lookup=52
+add_rule tailscale_bypass       rule  priority=1285 mark=0x80000/0xff0000 lookup=main
+add_rule tailscale_bypass6      rule6 priority=1285 mark=0x80000/0xff0000 lookup=main
+uci commit network

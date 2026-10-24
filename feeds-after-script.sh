@@ -120,3 +120,10 @@ grep -qF '"title": "ZeroTier",' "$ZEROTIER_MENU" || {
 }
 sed -i '/"title": "ZeroTier",/{n;/"order":/d;}'                       "$ZEROTIER_MENU"
 # menu order end
+
+
+# rootfs overlay start
+# Buildroot copies the top-level files/ directory into the firmware rootfs.
+rm -rf ./files
+cp -a "$WORKFLOW_ROOT/files"                                           ./files
+# rootfs overlay end
