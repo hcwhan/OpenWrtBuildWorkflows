@@ -28,18 +28,22 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
 
 # tailscale is built with ts_omit_clientupdate, so a saved AutoUpdate.Apply=true makes every 'tailscale set' fail.
-# Always pass --auto-update=false (the only edit tailscaled accepts in that state) so the settings get applied.
+# Reset it with 'tailscale set --auto-update=false' (tailscaled only rejects edits whose result still has Apply=true) right before the real 'tailscale set'.
 TAILSCALE_SETTINGS_INIT="$FEEDS_HCWHAN/luci-app-tailscale-community/root/etc/init.d/tailscale-settings"
 grep -qF -- '--auto-update' "$TAILSCALE_SETTINGS_INIT" && {
 	echo "ERROR: '--auto-update' already present in $TAILSCALE_SETTINGS_INIT; upstream changed, review and drop this patch" >&2
 	exit 1
 }
-test "$(grep -cxF $'\tset -- set' "$TAILSCALE_SETTINGS_INIT")" = 1 || {
-	echo "ERROR: expected exactly one 'set -- set' line in $TAILSCALE_SETTINGS_INIT" >&2
+test "$(grep -cxF $'\tlogger -t "$NAME" "Applying settings"' "$TAILSCALE_SETTINGS_INIT")" = 1 || {
+	echo "ERROR: expected exactly one 'Applying settings' logger line in $TAILSCALE_SETTINGS_INIT" >&2
 	exit 1
 }
-sed -i '/^\tset -- set$/r /dev/stdin'                                     "$TAILSCALE_SETTINGS_INIT" <<'EOF'
-	set -- "$@" --auto-update=false
+sed -i '/^\tlogger -t "\$NAME" "Applying settings"$/r /dev/stdin' "$TAILSCALE_SETTINGS_INIT" <<'EOF'
+	[ "$("$ts_bin" get auto-update 2>/dev/null)" = true ] && {
+		logger -t "$NAME" "AutoUpdate.Apply=true is unsupported in this build, resetting it"
+		"$ts_bin" set --auto-update=false \
+			|| logger -t "$NAME" "Failed to reset auto-update (exit code: $?)"
+	}
 EOF
 # luci-app-tailscale-community end
 
