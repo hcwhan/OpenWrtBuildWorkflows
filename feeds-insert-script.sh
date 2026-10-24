@@ -57,6 +57,56 @@ sed -i '/^  config_load tailscale$/r /dev/stdin'                          "$TAIL
     return 0
   fi
 EOF
+
+# tailscale installs subnet routes accepted from other nodes into table 52 (pref 5270), which beats the main table.
+# If another node advertises a subnet that overlaps a local one (e.g. the LAN), it would hijack that LAN.
+# Look up main first at pref 1295 and ignore its default route, so specific local routes always win.
+# Except the tailnet's own ranges (100.64.0.0/10, fd7a:115c:a1e0::/48): pin them to table 52 at pref 1290,
+# or a CGNAT WAN route would swallow all peers.
+# Packets from tailscaled itself (fwmark 0x80000/0xff0000) go to main at pref 1285, before the pin: with an exit node,
+# table 52 has a default route, so the pin would loop them back into tailscale0 (e.g. non-peer CGNAT destinations).
+# All three prefs sit after mwan3's iif rules (pref 1001+) and before tailscale's own rules (5210-5270, or 1310-1370
+# when it detects mwan3 on OpenWrt), so they take effect whether or not tailscale detects mwan3.
+test "$(grep -c '^  /usr/sbin/tailscaled --cleanup$' "$TAILSCALE_INIT")" = 2 || {
+	echo "ERROR: expected exactly two '  /usr/sbin/tailscaled --cleanup' in $TAILSCALE_INIT" >&2
+	exit 1
+}
+sed -i -e '/^start_service() {$/,/^}$/{' \
+       -e '/^  \/usr\/sbin\/tailscaled --cleanup$/r /dev/stdin' \
+       -e '}'                                                          "$TAILSCALE_INIT" <<'EOF'
+
+  local fam
+  for fam in -4 -6; do
+    ip $fam rule del pref 1295 table main suppress_prefixlength 0 2>/dev/null
+    ip $fam rule add pref 1295 table main suppress_prefixlength 0 || logger -t tailscale "failed to add ip $fam rule pref 1295"
+    ip $fam rule del pref 1285 fwmark 0x80000/0xff0000 table main 2>/dev/null
+    ip $fam rule add pref 1285 fwmark 0x80000/0xff0000 table main || logger -t tailscale "failed to add ip $fam rule pref 1285"
+  done
+  ip -4 rule del pref 1290 to 100.64.0.0/10 table 52 2>/dev/null
+  ip -4 rule add pref 1290 to 100.64.0.0/10 table 52 || logger -t tailscale "failed to add ip -4 rule pref 1290"
+  ip -6 rule del pref 1290 to fd7a:115c:a1e0::/48 table 52 2>/dev/null
+  ip -6 rule add pref 1290 to fd7a:115c:a1e0::/48 table 52 || logger -t tailscale "failed to add ip -6 rule pref 1290"
+EOF
+sed -i '/^stop_service() {$/r /dev/stdin'                              "$TAILSCALE_INIT" <<'EOF'
+  local fam
+  for fam in -4 -6; do
+    ip $fam rule del pref 1295 table main suppress_prefixlength 0 2>/dev/null
+    ip $fam rule del pref 1285 fwmark 0x80000/0xff0000 table main 2>/dev/null
+  done
+  ip -4 rule del pref 1290 to 100.64.0.0/10 table 52 2>/dev/null
+  ip -6 rule del pref 1290 to fd7a:115c:a1e0::/48 table 52 2>/dev/null
+EOF
+test "$(grep -c 'suppress_prefixlength 0' "$TAILSCALE_INIT")" = 3 || {
+	echo "ERROR: ip rule patch not applied to start_service/stop_service in $TAILSCALE_INIT" >&2
+	exit 1
+}
+
+# The ip rule patch above runs ip(8), which the package does not depend on. Add +ip (provided by ip-tiny and ip-full).
+test "$(grep -c '^  DEPENDS:=' "$TAILSCALE_MAKEFILE")" = 1 || {
+	echo "ERROR: expected exactly one '  DEPENDS:=' in $TAILSCALE_MAKEFILE" >&2
+	exit 1
+}
+sed -i '/^  DEPENDS:=/s/$/ +ip/'                                       "$TAILSCALE_MAKEFILE"
 # tailscale end
 
 
