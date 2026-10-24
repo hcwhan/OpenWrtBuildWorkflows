@@ -1,21 +1,21 @@
 #!/bin/sh
 
-# tailscale installs subnet routes accepted from other nodes into table 52 (pref 5270), which beats the main table.
-# If another node advertises a subnet that overlaps a local one (e.g. the LAN), it would hijack that LAN.
-# Look up main first at pref 1295 and ignore its default route, so specific local routes always win.
-# Except the tailnet's own ranges (100.64.0.0/10, fd7a:115c:a1e0::/48): pin them to table 52 at pref 1290,
-# or a CGNAT WAN route would swallow all peers.
-# Packets from tailscaled itself (fwmark 0x80000/0xff0000) go to main at pref 1285, before the pin: with an exit node,
-# table 52 has a default route, so the pin would loop them back into tailscale0 (e.g. non-peer CGNAT destinations).
-# All three prefs sit after mwan3's iif rules (pref 1001+) and before tailscale's own rules (5210-5270, or 1310-1370
-# when it detects mwan3 on OpenWrt), so they take effect whether or not tailscale detects mwan3.
+# tailscale 会把接受自其他节点的子网路由装入路由表 52(pref 5270), 该表会先于 main 表被查询.
+# 如果其他节点通告的子网与本地子网重叠(例如 LAN), 就会劫持这个 LAN 的流量.
+# 在 pref 1295 处先查 main 表并忽略其默认路由, 使具体的本地路由始终优先.
+# 例外是 tailnet 自身的地址段(100.64.0.0/10, fd7a:115c:a1e0::/48): 在 pref 1290 处把它们固定到路由表 52,
+# 否则 CGNAT 的 WAN 路由会截走所有对端的流量.
+# tailscaled 自身发出的包(fwmark 0x80000/0xff0000)在 pref 1285 处走 main 表, 排在上述固定规则之前: 使用 exit node 时,
+# 路由表 52 带有默认路由, 固定规则会把这些包绕回 tailscale0(例如发往非对端的 CGNAT 地址).
+# 这三个 pref 都排在 mwan3 的 iif 规则(pref 1001+)之后, tailscale 自带规则(5210-5270, 在 OpenWrt 上检测到
+# mwan3 时为 1310-1370)之前, 所以无论 tailscale 是否检测到 mwan3 都会生效.
 #
-# Added as netifd rule/rule6 sections, not as ip(8) calls in the tailscale init script: netifd flushes every ip rule
-# each time it starts, and tailscaled only restores rules inside its own pref range, so rules added by the init script
-# were lost on a network restart until tailscale was restarted. netifd re-applies its own rules instead.
+# 以 netifd 的 rule/rule6 配置节添加, 而不是在 tailscale 的 init 脚本里调用 ip(8): netifd 每次启动都会清空所有 ip rule,
+# 而 tailscaled 只会恢复其自身 pref 范围内的规则, 所以由 init 脚本添加的规则在网络重启后会丢失, 直到 tailscale 被重启.
+# 改由 netifd 重新应用自己的规则.
 #
-# Sections that already exist are left alone, so local edits (e.g. option disabled '1') survive a re-run.
-add_rule() {  # add_rule <section> <rule|rule6> <option=value>...
+# 已存在的配置节不会被改动, 因此本地修改(例如 option disabled '1')在重复运行后仍会保留.
+add_rule() {  # add_rule <配置节名> <rule|rule6> <选项=值>...
 	local name="$1" kind="$2" opt
 	shift 2
 	uci -q get "network.$name" > /dev/null && return 0

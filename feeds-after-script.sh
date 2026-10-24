@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# openwrt/ is a symlink to /workdir/openwrt in CI, so ../ does not reach the workflow repo.
+# CI 中 openwrt/ 是指向 /workdir/openwrt 的符号链接, 所以 ../ 无法到达 workflow 仓库.
 WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 FEEDS_HCWHAN="$WORKFLOW_ROOT/feeds-hcwhan"
 
 
-# luci-app-tailscale-community start
+# luci-app-tailscale-community 开始
 TAILSCALE_COMMUNITY_SRC=/tmp/luci-app-tailscale-community-src
 rm -rf "$FEEDS_HCWHAN/luci-app-tailscale-community" "$TAILSCALE_COMMUNITY_SRC"
 git clone --depth 1 https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community "$TAILSCALE_COMMUNITY_SRC" || {
@@ -27,8 +27,8 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
 
-# tailscale is built with ts_omit_clientupdate, so a saved AutoUpdate.Apply=true makes every 'tailscale set' fail.
-# Reset it with 'tailscale set --auto-update=false' (tailscaled only rejects edits whose result still has Apply=true) right before the real 'tailscale set'.
+# tailscale 是用 ts_omit_clientupdate 构建的, 因此已保存的 AutoUpdate.Apply=true 会导致每次 'tailscale set' 都失败.
+# 在真正的 'tailscale set' 之前, 先用 'tailscale set --auto-update=false' 重置它(tailscaled 只会拒绝结果仍为 Apply=true 的修改).
 TAILSCALE_SETTINGS_INIT="$FEEDS_HCWHAN/luci-app-tailscale-community/root/etc/init.d/tailscale-settings"
 grep -qF -- '--auto-update' "$TAILSCALE_SETTINGS_INIT" && {
 	echo "ERROR: '--auto-update' already present in $TAILSCALE_SETTINGS_INIT; upstream changed, review and drop this patch" >&2
@@ -45,10 +45,10 @@ sed -i '/^\tlogger -t "\$NAME" "Applying settings"$/r /dev/stdin' "$TAILSCALE_SE
 			|| logger -t "$NAME" "Failed to reset auto-update (exit code: $?)"
 	}
 EOF
-# luci-app-tailscale-community end
+# luci-app-tailscale-community 结束
 
 
-# luci-app-mosdns start
+# luci-app-mosdns 开始
 rm -rf "$FEEDS_HCWHAN/mosdns"
 rm -rf "$FEEDS_HCWHAN/v2ray-geodata"
 git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5   "$FEEDS_HCWHAN/mosdns" || {
@@ -59,7 +59,7 @@ git clone --depth 1 https://github.com/sbwml/v2ray-geodata           "$FEEDS_HCW
 	echo "ERROR: failed to clone v2ray-geodata" >&2
 	exit 1
 }
-# Drop nested .git so these clones are not detected as separate repos and not copied into the build tree.
+# 删除嵌套的 .git, 避免这些克隆被识别为独立仓库, 也避免被复制进构建树.
 rm -rf "$FEEDS_HCWHAN/mosdns/.git" "$FEEDS_HCWHAN/v2ray-geodata/.git"
 
 MOSDNS_CONFIG="$FEEDS_HCWHAN/mosdns/luci-app-mosdns/root/etc/mosdns/config_custom.yaml"
@@ -68,20 +68,20 @@ grep -qF -- '- exec: prefer_ipv4' "$MOSDNS_CONFIG" || {
 	exit 1
 }
 sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                "$MOSDNS_CONFIG"
-# luci-app-mosdns end
+# luci-app-mosdns 结束
 
 
-# feeds-hcwhan start
+# feeds-hcwhan 开始
 rm -rf ./package/feeds/feeds-hcwhan
 mkdir -p ./package/feeds/
 cp -a "$FEEDS_HCWHAN"                                                  ./package/feeds/
-# feeds-hcwhan end
+# feeds-hcwhan 结束
 
 
 
-# menu order start
-# Drop top-level order so LuCI defaults to 1000 and sorts siblings by name.
-# UPnP has no top-level order; no change needed.
+# 菜单顺序 开始
+# 删除顶层 order, 使 LuCI 默认取 1000, 并按名称对同级菜单排序.
+# UPnP 没有顶层 order, 无需修改.
 FILEBROWSER_MENU='./package/feeds/luci/luci-app-filebrowser/root/usr/share/luci/menu.d/luci-app-filebrowser.json'
 grep -qF '"title": "FileBrowser",' "$FILEBROWSER_MENU" || {
 	echo "ERROR: '\"title\": \"FileBrowser\",' not found in $FILEBROWSER_MENU" >&2
@@ -123,11 +123,11 @@ grep -qF '"title": "ZeroTier",' "$ZEROTIER_MENU" || {
 	exit 1
 }
 sed -i '/"title": "ZeroTier",/{n;/"order":/d;}'                       "$ZEROTIER_MENU"
-# menu order end
+# 菜单顺序 结束
 
 
-# rootfs overlay start
-# Buildroot copies the top-level files/ directory into the firmware rootfs.
+# rootfs 覆盖层 开始
+# Buildroot 会把顶层的 files/ 目录复制进固件的 rootfs.
 rm -rf ./files
 cp -a "$WORKFLOW_ROOT/files"                                           ./files
-# rootfs overlay end
+# rootfs 覆盖层 结束
