@@ -65,6 +65,18 @@ sed -i '/^  config_load tailscale$/r /dev/stdin'                          "$TAIL
     return 0
   fi
 EOF
+
+# 开机时补齐防子网劫持的 netifd ip rule 配置节: 脚本随 tailscale 包安装, 开机顺序 S15(早于 S20network).
+# 镜像构建时 default_postinst 会对包内 /etc/init.d 下的脚本执行 enable, 自动生成 /etc/rc.d/S15tailscale-ip-rules 链接.
+# $(INSTALL_BIN) 以 0755 安装, 所以源文件不需要可执行位.
+test "$(grep -cxF $'\t$(INSTALL_BIN) ./files/tailscale.init $(1)/etc/init.d/tailscale' "$TAILSCALE_MAKEFILE")" = 1 || {
+	echo "ERROR: expected exactly one '\$(INSTALL_BIN) ./files/tailscale.init \$(1)/etc/init.d/tailscale' line in $TAILSCALE_MAKEFILE" >&2
+	exit 1
+}
+cp "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ip-rules.init"      "$TAILSCALE_PKG/files/tailscale-ip-rules.init"
+sed -i '/^\t\$(INSTALL_BIN) \.\/files\/tailscale\.init /r /dev/stdin'  "$TAILSCALE_MAKEFILE" <<'EOF'
+	$(INSTALL_BIN) ./files/tailscale-ip-rules.init $(1)/etc/init.d/tailscale-ip-rules
+EOF
 # tailscale 结束
 
 

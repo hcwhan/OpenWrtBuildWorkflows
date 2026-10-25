@@ -124,10 +124,3 @@ grep -qF '"title": "ZeroTier",' "$ZEROTIER_MENU" || {
 }
 sed -i '/"title": "ZeroTier",/{n;/"order":/d;}'                       "$ZEROTIER_MENU"
 # 菜单顺序 结束
-
-
-# rootfs 覆盖层 开始
-# Buildroot 会把顶层的 files/ 目录复制进固件的 rootfs.
-rm -rf ./files
-cp -a "$WORKFLOW_ROOT/files"                                           ./files
-# rootfs 覆盖层 结束
