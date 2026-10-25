@@ -26,25 +26,25 @@
 START=15
 
 add_rule() {  # add_rule <配置节名> <rule|rule6> <选项=值>...
-	local name="$1" kind="$2" opt
-	shift 2
-	uci -q get "network.$name" > /dev/null && return 0
-	uci set "network.$name=$kind"
-	for opt in "$@"; do
-		uci set "network.$name.$opt"
-	done
-	changed=1
+  local name="$1" kind="$2" opt
+  shift 2
+  uci -q get "network.$name" > /dev/null && return 0
+  uci set "network.$name=$kind"
+  for opt in "$@"; do
+    uci set "network.$name.$opt"
+  done
+  changed=1
 }
 
 start() {
-	changed=0
-	add_rule tailscale_local_first  rule  priority=1295 lookup=main suppress_prefixlength=0
-	add_rule tailscale_local_first6 rule6 priority=1295 lookup=main suppress_prefixlength=0
-	add_rule tailscale_tailnet_pin  rule  priority=1290 dest=100.64.0.0/10 lookup=52
-	add_rule tailscale_tailnet_pin6 rule6 priority=1290 dest=fd7a:115c:a1e0::/48 lookup=52
-	add_rule tailscale_bypass       rule  priority=1285 mark=0x80000/0xff0000 lookup=main
-	add_rule tailscale_bypass6      rule6 priority=1285 mark=0x80000/0xff0000 lookup=main
-	if [ "$changed" = 1 ]; then
-		uci commit network
-	fi
+  changed=0
+  add_rule tailscale_local_first  rule  priority=1295 lookup=main suppress_prefixlength=0
+  add_rule tailscale_local_first6 rule6 priority=1295 lookup=main suppress_prefixlength=0
+  add_rule tailscale_tailnet_pin  rule  priority=1290 dest=100.64.0.0/10 lookup=52
+  add_rule tailscale_tailnet_pin6 rule6 priority=1290 dest=fd7a:115c:a1e0::/48 lookup=52
+  add_rule tailscale_bypass       rule  priority=1285 mark=0x80000/0xff0000 lookup=main
+  add_rule tailscale_bypass6      rule6 priority=1285 mark=0x80000/0xff0000 lookup=main
+  if [ "$changed" = 1 ]; then
+    uci commit network
+  fi
 }

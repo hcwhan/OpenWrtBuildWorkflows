@@ -18,12 +18,12 @@ TAILSCALE_SRC=/tmp/openwrt-tailscale-src
 TAILSCALE_PKG='./feeds/packages/net/tailscale'
 rm -rf "$TAILSCALE_PKG" "$TAILSCALE_SRC"
 git clone --depth 1 https://github.com/GuNanOvO/openwrt-tailscale -b v1.104.2 "$TAILSCALE_SRC" || {
-	echo "ERROR: failed to clone openwrt-tailscale (v1.104.2)" >&2
-	exit 1
+  echo "ERROR: failed to clone openwrt-tailscale (v1.104.2)" >&2
+  exit 1
 }
 test -d "$TAILSCALE_SRC/package/tailscale" || {
-	echo "ERROR: package/tailscale not found in openwrt-tailscale" >&2
-	exit 1
+  echo "ERROR: package/tailscale not found in openwrt-tailscale" >&2
+  exit 1
 }
 cp -a "$TAILSCALE_SRC/package/tailscale"                             "$TAILSCALE_PKG"
 rm -rf "$TAILSCALE_SRC"
@@ -33,30 +33,30 @@ TAILSCALE_INIT="$TAILSCALE_PKG/files/tailscale.init"
 
 # 先构建 golang/host, 使 tailscale 使用 feeds 里的 Go, 而不是 CI 主机上的 Go.
 test "$(grep -c '^PKG_BUILD_DIR:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -qF 'PKG_BUILD_DIR:=$(BUILD_DIR)/tailscale-$(PKG_VERSION)' "$TAILSCALE_MAKEFILE" || {
-	echo "ERROR: expected exactly one 'PKG_BUILD_DIR:=\$(BUILD_DIR)/tailscale-\$(PKG_VERSION)' in $TAILSCALE_MAKEFILE" >&2
-	exit 1
+  echo "ERROR: expected exactly one 'PKG_BUILD_DIR:=\$(BUILD_DIR)/tailscale-\$(PKG_VERSION)' in $TAILSCALE_MAKEFILE" >&2
+  exit 1
 }
 sed -i '/^PKG_BUILD_DIR:=/a PKG_BUILD_DEPENDS:=golang/host'            "$TAILSCALE_MAKEFILE"
 
 # 仅用 ts_omit_clientupdate 时, 仍会通过 flash-appliance 的 CLI 命令链接 tailscale.com/clientupdate, 使 CanAutoUpdate() 保持为 true,
 # 导致 tailscaled 启动时无法清除已保存的 AutoUpdate.Apply=true. 把这些命令也省略掉, 该包就会被剔除.
 test "$(grep -c '^GO_PKG_TAGS:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -q '^GO_PKG_TAGS:=.*ts_omit_clientupdate$' "$TAILSCALE_MAKEFILE" || {
-	echo "ERROR: expected exactly one 'GO_PKG_TAGS:=' line ending with 'ts_omit_clientupdate' in $TAILSCALE_MAKEFILE" >&2
-	exit 1
+  echo "ERROR: expected exactly one 'GO_PKG_TAGS:=' line ending with 'ts_omit_clientupdate' in $TAILSCALE_MAKEFILE" >&2
+  exit 1
 }
 sed -i '/^GO_PKG_TAGS:=/s/$/,ts_omit_flashappliance/'                  "$TAILSCALE_MAKEFILE"
 
 # 版本串里的 "(OpenWrt-UPX)" 是 Makefile 里写死的标签, 与是否实际做了 UPX 压缩无关, 改成与 ImmortalWrt 自带包一致的 "(OpenWrt)".
 test "$(grep -cF '(OpenWrt-UPX)' "$TAILSCALE_MAKEFILE")" = 1 || {
-	echo "ERROR: expected exactly one '(OpenWrt-UPX)' in $TAILSCALE_MAKEFILE" >&2
-	exit 1
+  echo "ERROR: expected exactly one '(OpenWrt-UPX)' in $TAILSCALE_MAKEFILE" >&2
+  exit 1
 }
 sed -i 's/(OpenWrt-UPX)/(OpenWrt)/'                                    "$TAILSCALE_MAKEFILE"
 
 # 包描述里的 "(UPX Compressed)" 同样与是否实际做了 UPX 压缩无关, 一并去掉.
 test "$(grep -c 'TITLE:=Zero config VPN (UPX Compressed)$' "$TAILSCALE_MAKEFILE")" = 1 || {
-	echo "ERROR: expected exactly one 'TITLE:=Zero config VPN (UPX Compressed)' in $TAILSCALE_MAKEFILE" >&2
-	exit 1
+  echo "ERROR: expected exactly one 'TITLE:=Zero config VPN (UPX Compressed)' in $TAILSCALE_MAKEFILE" >&2
+  exit 1
 }
 sed -i '/TITLE:=Zero config VPN (UPX Compressed)$/s/ (UPX Compressed)//' "$TAILSCALE_MAKEFILE"
 
@@ -69,8 +69,8 @@ sed -i -e '/\[Maintainer Note\]/d' \
 # 开机时遵循 tailscale.settings.service_enabled: 为 0 时跳过启动, 并删除 /etc/rc.d/S80tailscale 链接.
 # 此处通过 S80tailscale 链接调用, 直接用 rc.common 的 disable() 会作用到错误的名称上, 所以改用 init 脚本的路径.
 test "$(grep -c '^  config_load tailscale$' "$TAILSCALE_INIT")" = 1 || {
-	echo "ERROR: expected exactly one '  config_load tailscale' in $TAILSCALE_INIT" >&2
-	exit 1
+  echo "ERROR: expected exactly one '  config_load tailscale' in $TAILSCALE_INIT" >&2
+  exit 1
 }
 sed -i '/^  config_load tailscale$/r /dev/stdin'                          "$TAILSCALE_INIT" <<'EOF'
   local service_enabled
@@ -86,8 +86,8 @@ EOF
 # 镜像构建时 default_postinst 会对包内 /etc/init.d 下的脚本执行 enable, 自动生成 /etc/rc.d/S15tailscale-ip-rules 链接.
 # $(INSTALL_BIN) 以 0755 安装, 所以源文件不需要可执行位.
 test "$(grep -cxF $'\t$(INSTALL_BIN) ./files/tailscale.init $(1)/etc/init.d/tailscale' "$TAILSCALE_MAKEFILE")" = 1 || {
-	echo "ERROR: expected exactly one '\$(INSTALL_BIN) ./files/tailscale.init \$(1)/etc/init.d/tailscale' line in $TAILSCALE_MAKEFILE" >&2
-	exit 1
+  echo "ERROR: expected exactly one '\$(INSTALL_BIN) ./files/tailscale.init \$(1)/etc/init.d/tailscale' line in $TAILSCALE_MAKEFILE" >&2
+  exit 1
 }
 cp "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ip-rules.init"      "$TAILSCALE_PKG/files/tailscale-ip-rules.init"
 sed -i '/^\t\$(INSTALL_BIN) \.\/files\/tailscale\.init /r /dev/stdin'  "$TAILSCALE_MAKEFILE" <<'EOF'
@@ -113,8 +113,8 @@ cp -a "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                ./feeds/luc
 
 # 把菜单入口从 VPN 移到 服务(admin/vpn/zerotier -> admin/services/zerotier).
 grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
-	echo "ERROR: 'admin/vpn/zerotier' not found in $ZEROTIER_MENU_JSON" >&2
-	exit 1
+  echo "ERROR: 'admin/vpn/zerotier' not found in $ZEROTIER_MENU_JSON" >&2
+  exit 1
 }
 sed -i 's/admin\/vpn\/zerotier/admin\/services\/zerotier/g'          "$ZEROTIER_MENU_JSON"
 # luci-app-zerotier 结束
@@ -131,18 +131,18 @@ echo "Using OpenClash tag: $OPENCLASH_TAG"
 rm -rf "$OPENCLASH_SRC" "$OPENCLASH_TMP"
 
 git clone --depth 1 --branch "$OPENCLASH_TAG" https://github.com/vernesong/OpenClash "$OPENCLASH_TMP" || {
-	echo "ERROR: failed to clone OpenClash $OPENCLASH_TAG" >&2
-	exit 1
+  echo "ERROR: failed to clone OpenClash $OPENCLASH_TAG" >&2
+  exit 1
 }
 
 test -d "$OPENCLASH_TMP/luci-app-openclash" || {
-	echo "ERROR: luci-app-openclash not found in OpenClash $OPENCLASH_TAG" >&2
-	exit 1
+  echo "ERROR: luci-app-openclash not found in OpenClash $OPENCLASH_TAG" >&2
+  exit 1
 }
 
 grep -qF "PKG_VERSION:=${OPENCLASH_TAG#v}" "$OPENCLASH_TMP/luci-app-openclash/Makefile" || {
-	echo "ERROR: PKG_VERSION:=${OPENCLASH_TAG#v} not found in luci-app-openclash Makefile ($OPENCLASH_TAG)" >&2
-	exit 1
+  echo "ERROR: PKG_VERSION:=${OPENCLASH_TAG#v} not found in luci-app-openclash Makefile ($OPENCLASH_TAG)" >&2
+  exit 1
 }
 
 mv "$OPENCLASH_TMP/luci-app-openclash" "$OPENCLASH_SRC"
@@ -172,10 +172,10 @@ SQM_JSON='./feeds/luci/applications/luci-app-sqm/root/usr/share/luci/menu.d/luci
 # 原文和已替换后的文本都找不到时报错退出(说明上游已变更).
 # 接受已替换后的文本, 是为了在已打过补丁的目录树上重复运行仍能正常工作.
 require_text() {
-	grep -qF -- "$2" "$1" || grep -qF -- "$3" "$1" || {
-		echo "ERROR: '$2' not found in $1" >&2
-		exit 1
-	}
+  grep -qF -- "$2" "$1" || grep -qF -- "$3" "$1" || {
+    echo "ERROR: '$2' not found in $1" >&2
+    exit 1
+  }
 }
 require_text "$CPUFREQ_PO" 'msgstr "CPU 性能优化调节"'     'msgstr "CPU 频率"'
 require_text "$CPUFREQ_PO" 'msgstr "CPU 性能优化调节设置"'  'msgstr "CPU 频率设置"'
