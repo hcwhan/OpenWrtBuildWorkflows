@@ -44,6 +44,20 @@ test "$(grep -c '^GO_PKG_TAGS:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -q '^GO_PKG
 }
 sed -i '/^GO_PKG_TAGS:=/s/$/,ts_omit_flashappliance/'                  "$TAILSCALE_MAKEFILE"
 
+# 版本串里的 "(OpenWrt-UPX)" 是 Makefile 里写死的标签, 与是否实际做了 UPX 压缩无关, 改成与 ImmortalWrt 自带包一致的 "(OpenWrt)".
+test "$(grep -cF '(OpenWrt-UPX)' "$TAILSCALE_MAKEFILE")" = 1 || {
+	echo "ERROR: expected exactly one '(OpenWrt-UPX)' in $TAILSCALE_MAKEFILE" >&2
+	exit 1
+}
+sed -i 's/(OpenWrt-UPX)/(OpenWrt)/'                                    "$TAILSCALE_MAKEFILE"
+
+# 包描述里的 "(UPX Compressed)" 同样与是否实际做了 UPX 压缩无关, 一并去掉.
+test "$(grep -c 'TITLE:=Zero config VPN (UPX Compressed)$' "$TAILSCALE_MAKEFILE")" = 1 || {
+	echo "ERROR: expected exactly one 'TITLE:=Zero config VPN (UPX Compressed)' in $TAILSCALE_MAKEFILE" >&2
+	exit 1
+}
+sed -i '/TITLE:=Zero config VPN (UPX Compressed)$/s/ (UPX Compressed)//' "$TAILSCALE_MAKEFILE"
+
 # 删除仅面向维护者的 tailscaled 导出到 bin/packages 的逻辑(固件构建用不到).
 sed -i -e '/\[Maintainer Note\]/d' \
        -e '/Feel free to remove the next two lines/d' \
