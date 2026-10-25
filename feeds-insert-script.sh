@@ -6,12 +6,14 @@ WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 
 
 # golang 开始
+# 用项目内 feeds-master 的 golang 替换 feed 自带的 golang(为了使用更高版本的 Go 版本).
 rm -rf ./feeds/packages/lang/golang
 cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/packages/lang/golang
 # golang 结束
 
 
 # tailscale 开始
+# 不用 feed 自带的 tailscale 包, 构建时克隆 GuNanOvO/openwrt-tailscale 的固定标签整体替换.
 TAILSCALE_SRC=/tmp/openwrt-tailscale-src
 TAILSCALE_PKG='./feeds/packages/net/tailscale'
 rm -rf "$TAILSCALE_PKG" "$TAILSCALE_SRC"
@@ -95,6 +97,7 @@ EOF
 
 
 # zerotier 开始
+# 用项目内 feeds-master 的副本替换 feed 自带的 zerotier.
 rm -rf ./feeds/packages/net/zerotier
 cp -a "$WORKFLOW_ROOT/feeds-master/zerotier"                         ./feeds/packages/net/zerotier
 # zerotier 结束
@@ -104,9 +107,11 @@ cp -a "$WORKFLOW_ROOT/feeds-master/zerotier"                         ./feeds/pac
 ZEROTIER_LUCI_SRC='./feeds/luci/applications/luci-app-zerotier'
 ZEROTIER_MENU_JSON="$ZEROTIER_LUCI_SRC/root/usr/share/luci/menu.d/luci-app-zerotier.json"
 
+# 用项目内 feeds-master 的副本替换 feed 自带的 luci-app-zerotier.
 rm -rf "$ZEROTIER_LUCI_SRC"
 cp -a "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                ./feeds/luci/applications/luci-app-zerotier
 
+# 把菜单入口从 VPN 移到 服务(admin/vpn/zerotier -> admin/services/zerotier).
 grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
 	echo "ERROR: 'admin/vpn/zerotier' not found in $ZEROTIER_MENU_JSON" >&2
 	exit 1
@@ -116,6 +121,7 @@ sed -i 's/admin\/vpn\/zerotier/admin\/services\/zerotier/g'          "$ZEROTIER_
 
 
 # luci-app-openclash 开始
+# 用 vernesong/OpenClash 的固定标签替换 feed 自带的 luci-app-openclash, 并校验其 Makefile 的 PKG_VERSION 与标签一致.
 OPENCLASH_TAG='v0.48.002'
 OPENCLASH_SRC='./feeds/luci/applications/luci-app-openclash'
 OPENCLASH_TMP='/tmp/openclash-src'
@@ -152,6 +158,7 @@ rm -rf ./feeds/packages/net/v2ray-geodata
 
 
 # miniupnpd 开始
+# 给 miniupnpd 增加补丁: upnpsoap.c 里 "private/reserved address ... is not suitable for external IP" 这条日志由 LOG_NOTICE 降为 LOG_DEBUG.
 cp "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/packages/net/miniupnpd/patches/
 # miniupnpd 结束
 
@@ -177,17 +184,20 @@ require_text "$SQM_PO"     'msgstr "SQM 队列管理"'          'msgstr "队列�
 require_text "$SQM_JSON"   '"title": "SQM QoS",'           '"title": "SQM",'
 require_text "$SQM_JSON"   $'\t\t"order": 59,'             '"title": "SQM",'
 
+# luci-app-cpufreq: 中文显示 "CPU 性能优化调节" 改为 "CPU 频率", "CPU 性能优化调节设置" 改为 "CPU 频率设置".
 sed -i 's/msgstr "CPU 性能优化调节"/msgstr "CPU 频率"/'                 "$CPUFREQ_PO"
 sed -i 's/msgstr "CPU 性能优化调节设置"/msgstr "CPU 频率设置"/'          "$CPUFREQ_PO"
 
+# luci-app-sqm 翻译: msgid "SQM QoS" 改为 "SQM", 中文显示 "SQM 队列管理" 改为 "队列管理(SQM)".
 sed -i 's/msgid "SQM QoS"/msgid "SQM"/'                              "$SQM_PO"
 sed -i 's/msgstr "SQM 队列管理"/msgstr "队列管理(SQM)"/'                "$SQM_PO"
 
+# luci-app-sqm 菜单: 标题 "SQM QoS" 改为 "SQM"(与上面 po 的 msgid 对应), 并删除 order, 使 LuCI 默认取 1000, 按名称对同级菜单排序.
 sed -i 's/"title": "SQM QoS",/"title": "SQM",/'                      "$SQM_JSON"
 sed -i 's/\t\t"order": 59,//'                                        "$SQM_JSON"
 # 修改字符串 结束
 
 
 
-# 只重建 index，不 git pull
+# 只重建 index, 不 git pull
 ./scripts/feeds update -a -i

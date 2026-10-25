@@ -20,6 +20,7 @@ test -d "$TAILSCALE_COMMUNITY_SRC/luci-app-tailscale-community" || {
 cp -a "$TAILSCALE_COMMUNITY_SRC/luci-app-tailscale-community"          "$FEEDS_HCWHAN/luci-app-tailscale-community"
 rm -rf "$TAILSCALE_COMMUNITY_SRC"
 
+# 把菜单入口从 VPN 移到 服务(admin/vpn/tailscale -> admin/services/tailscale).
 TAILSCALE_MENU_JSON="$FEEDS_HCWHAN/luci-app-tailscale-community/root/usr/share/luci/menu.d/luci-app-tailscale-community.json"
 grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 	echo "ERROR: 'admin/vpn/tailscale' not found in $TAILSCALE_MENU_JSON" >&2
@@ -66,6 +67,7 @@ git clone --depth 1 https://github.com/sbwml/v2ray-geodata           "$FEEDS_HCW
 # 删除嵌套的 .git, 避免这些克隆被识别为独立仓库, 也避免被复制进构建树.
 rm -rf "$FEEDS_HCWHAN/mosdns/.git" "$FEEDS_HCWHAN/v2ray-geodata/.git"
 
+# 注释掉默认配置里的 '- exec: prefer_ipv4'(关闭 IPv4 优先).
 MOSDNS_CONFIG="$FEEDS_HCWHAN/mosdns/luci-app-mosdns/root/etc/mosdns/config_custom.yaml"
 grep -qF -- '- exec: prefer_ipv4' "$MOSDNS_CONFIG" || {
 	echo "ERROR: '- exec: prefer_ipv4' not found in $MOSDNS_CONFIG" >&2
