@@ -26,6 +26,10 @@ on:
 #  schedule:
 #    - cron: 0 */18 * * *
 
+# Read-only by default, the build job below raises contents to write only for publishing the release.
+permissions:
+  contents: read
+
 env:
   # REPO means the OpenWrt repo you want to build from in this workflow.
   # You can modify the WORK_NAME to any name you want, but remember not to let it have the same name in
@@ -68,12 +72,15 @@ jobs:
   build:
     name: Build firmware
     runs-on: ubuntu-22.04
+    # contents: write is only needed by the release step (softprops/action-gh-release).
     permissions:
       contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          persist-credentials: false
 
       - name: Initialization environment
         env:
