@@ -6,13 +6,13 @@
 ## 1. 说明
 
 1. 范围: `build_AX3600`, `build_NX30Pro`, `build_x86` 三个工作流, 三个目标的文件清单相同
-2. 依据: 上游 Makefile 与源文件, 本项目补丁脚本, 三份 `.config-*`. 8.1 和 8.2 的部分项在安装固件的设备上核对过, 静态推断的内容已单独标注
+2. 依据: 上游 Makefile 与源文件, 本项目补丁脚本, 三份 `.config-*`. 8.1 的部分项在安装固件的设备上核对过, 静态推断的内容已单独标注
 3. 整理日期: 2026-10-25
 4. 版本:
    1. `tailscale`: GuNanOvO/openwrt-tailscale 标签 `v1.104.2`(固定), 编译的源码为 tailscale/tailscale `v1.104.2`
-   2. `luci-app-tailscale-community`: Tokisaki-Galaxy `master`(未固定, 每次构建取最新), 整理时为 `a7057cb`(标签 `v4.4.3`), 文件清单可能随上游变化
+   2. `luci-app-tailscale-community`: Tokisaki-Galaxy `master`(未固定, 每次构建取最新), 文件清单可能随上游变化
 5. 标记: `上游` 原样, `补丁` 上游文件被本项目脚本修改, `项目` 本项目新增
-6. 权限: GuNanOvO 包由 Makefile 的 `$(INSTALL_BIN)`/`$(INSTALL_DATA)` 安装, 权限由 Makefile 决定. LuCI 应用由 `luci.mk` 用 `cp -pR` 安装, 权限沿用上游仓库的 git 权限(`tailscale-setup-firewall` 除外, 见 4.6)
+6. 权限: GuNanOvO 包由 Makefile 的 `$(INSTALL_BIN)`/`$(INSTALL_DATA)` 安装, 权限由 Makefile 决定. LuCI 应用由 `luci.mk` 用 `cp -pR` 安装, 权限沿用上游仓库的 git 权限
 
 ## 2. 总览
 
@@ -41,7 +41,7 @@
 | 9 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
 | 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
 | 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游+补丁 | 把 LuCI 设置应用到 tailscale |
-| 12 | `/usr/libexec/tailscale-setup-firewall` | 0755(见 8.1) | 上游+补丁 | "自动配置防火墙"的后台执行者 |
+| 12 | `/usr/libexec/tailscale-setup-firewall` | 0755 | 上游 | "自动配置防火墙"的后台执行者 |
 | 13 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | - | 上游 | 简体中文翻译 |
 | 14 | `/etc/uci-defaults/luci-i18n-tailscale-community-zh-cn` | - | 上游 | 首次开机登记语言名 |
 
@@ -61,7 +61,7 @@
 
 **补丁(版本串)**: 版本串由 `1.104.2-1 (OpenWrt-UPX)` 改为 `1.104.2-1 (OpenWrt)`, 包描述 `TITLE` 里的 `(UPX Compressed)` 一并去掉(`feeds-insert-script.sh` 的 `# tailscale` 段). 原因: 这两处是上游写死的字样, 而本项目构建并未压缩.
 
-**压缩**: 上游 Makefile 只在 `$(TOPDIR)/upx/upx` 存在时才用 UPX 压缩, ImmortalWrt 23.05 和本项目 CI 都没有提供, 所以未压缩. 安装固件的设备上已验证, 见 8.2.
+**压缩**: 上游 Makefile 只在 `$(TOPDIR)/upx/upx` 存在时才用 UPX 压缩, ImmortalWrt 23.05 和本项目 CI 都没有提供, 所以未压缩. 安装固件的设备上已验证, 见 8.1.
 
 ### 3.2 `/usr/sbin/tailscale`
 
@@ -189,11 +189,9 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 
 ### 4.6 `/usr/libexec/tailscale-setup-firewall`
 
-> 标记: 上游+补丁 | 权限: 0755(见 8.1)
+> 标记: 上游 | 权限: 0755
 
 **作用**: "自动配置防火墙"的后台执行者(参数为 run-id). 加锁 `/var/run/tailscale-fwsetup.lock.d`, 依次执行 `/etc/init.d/network reload` 和 `/etc/init.d/firewall reload`, 把进度(`running`, `done`, `failed`, `busy`)写入 `/var/run/tailscale-fwsetup.status`. 单独拆成脚本, 是为了让 RPC 先返回, 避免 reload 网络时掐断正在处理的请求(反向代理, 或经 Tailscale 访问 LuCI).
-
-**补丁**: 权限由上游的 `0644` 改为 `0755`(`feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段). 原因: `tailscale.uc` 按路径直接执行它, 没有执行位时启动失败(`Permission denied`), 见 8.1.
 
 ## 5. `luci-i18n-tailscale-community-zh-cn`(同一来源)
 
@@ -252,14 +250,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 
 ## 8. 需要留意与验证
 
-### 8.1 `tailscale-setup-firewall` 执行权限
-
-1. 位置: 上游仓库中该文件的 git 权限是 `100644`(当前 `master` 仍是). `luci.mk` 用 `cp -pR` 安装 `root/` 并保留权限, 上游 Makefile 没有 `chmod`. 同包的 `tailscale.uc` 和 `tailscale-settings` 是 `100755`, 不受影响
-2. 原因: `tailscale.uc` 用 `/bin/sh -c '/usr/libexec/tailscale-setup-firewall <id> >/dev/null 2>&1 &'` 按路径执行. 无执行权限时, 后台进程报 `Permission denied`, 外层 `sh` 返回 0, 后端发现不了失败
-3. 现象: 之前固件的设备上实测该文件为 `-rw-r--r--`, 按后端同样的方式启动得到 `Permission denied`, 退出码 126. 只影响点"自动配置防火墙"且有改动时(正常使用中通常只有第一次)的立即重载: 后端已自行提交 UCI, 配置在下次重启或重载时生效, 页面 30 秒后提示 `Timed out waiting for the firewall reload`(按代码推断, 未复现). 配置已存在时再点, 后端判定无改动, 不走该脚本
-4. 修复: `feeds-after-script.sh` 补 `chmod 755`(见 4.6). 在 Linux 沙箱里验证过项目脚本的 `cp -a` 和 `luci.mk` 的两次复制都保留该权限, 重新编译后用 8.2 第 3 项核对
-
-### 8.2 设备上核对
+### 8.1 设备上核对
 
 ```sh
 # 1. 三个包各自安装的文件, 应与 2.2 文件总表一致
@@ -270,7 +261,7 @@ opkg files luci-i18n-tailscale-community-zh-cn
 # 2. 开机链接, 预期 4 个: S15tailscale-ip-rules, S80tailscale, S99tailscale-settings, K10tailscale-settings
 ls -l /etc/rc.d/ | grep tailscale
 
-# 3. 执行权限, 预期 -rwxr-xr-x(见 8.1, 旧固件上为 -rw-r--r--)
+# 3. 执行权限, 预期 -rwxr-xr-x
 ls -l /usr/libexec/tailscale-setup-firewall
 
 # 4. UPX 压缩, 输出 0 表示未压缩(见 3.1, 旧固件上实测为 0, tailscaled 为 26596696 字节)

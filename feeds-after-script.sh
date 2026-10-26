@@ -46,10 +46,6 @@ sed -i '/^\tlogger -t "\$NAME" "Applying settings"$/r /dev/stdin' "$TAILSCALE_SE
       || logger -t "$NAME" "Failed to reset auto-update (exit code: $?)"
   }
 EOF
-
-# 后台重载脚本在上游仓库里的 git 权限是 100644, 而 tailscale.uc 按路径直接执行它, 没有执行位时启动失败(Permission denied).
-# luci.mk 用 cp -pR 安装 root/ 并保留权限, 所以在源码里补上执行位.
-chmod 755 "$FEEDS_HCWHAN/luci-app-tailscale-community/root/usr/libexec/tailscale-setup-firewall"
 # luci-app-tailscale-community 结束
 
 
