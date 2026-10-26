@@ -5,7 +5,7 @@ set -euo pipefail
 WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 
 # 引入共用函数 apply_patch.
-source "$WORKFLOW_ROOT/feeds-common.sh"
+source "$WORKFLOW_ROOT/0.feeds-common.sh"
 
 
 # golang 开始

@@ -53,9 +53,9 @@ env:
   # FEEDS_AFTER_SCRIPT is the name of extra bash script you want to execute after feeds install.
   # You can modify the initial settings of your firmware through these scripts. If this is what you need,
   # please upload your scripts to the root directory of your workflow repo.
-  FEEDS_BEFORE_SCRIPT: feeds-before-script.sh
-  FEEDS_INSERT_SCRIPT: feeds-insert-script.sh
-  FEEDS_AFTER_SCRIPT: feeds-after-script.sh
+  FEEDS_BEFORE_SCRIPT: 1.feeds-before-script.sh
+  FEEDS_INSERT_SCRIPT: 2.feeds-insert-script.sh
+  FEEDS_AFTER_SCRIPT: 3.feeds-after-script.sh
   # STORE_PRODUCTS determine whether to upload all compilation products to workflow artifacts.
   # Not only firmwires, all compiled packages will be here, including compiled but not solidified into firmware.
   STORE_PRODUCTS: true

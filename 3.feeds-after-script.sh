@@ -6,7 +6,7 @@ WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 FEEDS_HCWHAN="$WORKFLOW_ROOT/feeds-hcwhan"
 
 # 引入共用函数 apply_patch.
-source "$WORKFLOW_ROOT/feeds-common.sh"
+source "$WORKFLOW_ROOT/0.feeds-common.sh"
 
 
 # luci-app-tailscale-community 开始
