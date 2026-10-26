@@ -1,6 +1,6 @@
 
 tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/Makefile)的补丁.
-应用: feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+应用: 2.feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
 作用: 去掉 Makefile 里写死的 UPX 字样, 共两处:
 1. GO_PKG_LDFLAGS 里版本串的 "(OpenWrt-UPX)" 改成 "(OpenWrt)".
 2. Package/tailscale 的 TITLE 由 "Zero config VPN (UPX Compressed)" 改成 "Zero config VPN".

@@ -13,7 +13,7 @@
 #
 # 只删链接, 不停止进程, 不改配置. 重新开启服务时, tailscale-settings 会 enable 并启动 tailscale.
 # 只实现 boot(), 只在开机时执行; 手动 start / restart 和 opkg 安装后的 start 都是空操作. 手动验证用 /etc/init.d/tailscale-boot-gate boot.
-# 本脚本由 feeds-after-script.sh 放进 luci-app-tailscale-community 包的 root/ 下随包安装, 镜像构建时会自动生成 /etc/rc.d/S70tailscale-boot-gate 链接.
+# 本脚本由 3.feeds-after-script.sh 放进 luci-app-tailscale-community 包的 root/ 下随包安装, 镜像构建时会自动生成 /etc/rc.d/S70tailscale-boot-gate 链接.
 
 START=70
 

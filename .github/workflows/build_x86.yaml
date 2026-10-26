@@ -103,7 +103,7 @@ jobs:
           git clone --depth 1 --branch $REPO_BRANCH --single-branch $REPO_URL openwrt/
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-      - name: Run feeds-before-script
+      - name: Run 1.feeds-before-script
         run: |
           chmod +x $FEEDS_BEFORE_SCRIPT
           cd openwrt/
@@ -112,7 +112,7 @@ jobs:
       - name: Update feeds
         run: cd openwrt/ && ./scripts/feeds update -a
 
-      - name: Run feeds-insert-script
+      - name: Run 2.feeds-insert-script
         run: |
           chmod +x $FEEDS_INSERT_SCRIPT
           cd openwrt/
@@ -121,7 +121,7 @@ jobs:
       - name: Install feeds
         run: cd openwrt/ && ./scripts/feeds install -a
 
-      - name: Run feeds-after-script
+      - name: Run 3.feeds-after-script
         run: |
           chmod +x $FEEDS_AFTER_SCRIPT
           cd openwrt/
