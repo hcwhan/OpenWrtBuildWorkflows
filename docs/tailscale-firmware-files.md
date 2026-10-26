@@ -20,11 +20,11 @@
 
 | # | 包 | 来源 | 文件数 |
 |---|----|------|--------|
-| 1 | `tailscale` | [GuNanOvO/openwrt-tailscale](https://github.com/GuNanOvO/openwrt-tailscale) | 5 |
+| 1 | `tailscale` | [GuNanOvO/openwrt-tailscale](https://github.com/GuNanOvO/openwrt-tailscale) | 6 |
 | 2 | `luci-app-tailscale-community` | [Tokisaki-Galaxy/luci-app-tailscale-community](https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community) | 6 |
 | 3 | `luci-i18n-tailscale-community-zh-cn` | 同 2, 只构建简体中文 | 2 |
 
-合计 13 个文件(含 1 个符号链接). 三份 `.config-*` 里这三个包均为 `=y`.
+合计 14 个文件(含 1 个符号链接). 三份 `.config-*` 里这三个包均为 `=y`.
 
 ### 2.2 文件总表
 
@@ -35,16 +35,17 @@
 | 3 | `/etc/init.d/tailscale` | 0755 | 上游+补丁 | 守护进程的 procd 启动脚本 |
 | 4 | `/etc/init.d/tailscale-ip-rules` | 0755 | 项目 | 开机补 ip rule, 防子网劫持 |
 | 5 | `/etc/config/tailscale` | 0644 | 上游 | UCI 配置 |
-| 6 | `/www/luci-static/resources/view/tailscale.js` | 0644 | 上游 | LuCI 页面前端 |
-| 7 | `/usr/share/luci/menu.d/luci-app-tailscale-community.json` | 0644 | 上游+补丁 | 菜单注册 |
-| 8 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
-| 9 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
-| 10 | `/etc/init.d/tailscale-settings` | 0755 | 上游+补丁 | 把 LuCI 设置应用到 tailscale |
-| 11 | `/usr/libexec/tailscale-setup-firewall` | 0755(见 8.1) | 上游+补丁 | "自动配置防火墙"的后台执行者 |
-| 12 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | - | 上游 | 简体中文翻译 |
-| 13 | `/etc/uci-defaults/luci-i18n-tailscale-community-zh-cn` | - | 上游 | 首次开机登记语言名 |
+| 6 | `/lib/upgrade/keep.d/tailscale` | 0644 | 上游 | sysupgrade 保留清单, 内容为 `/etc/tailscale/` |
+| 7 | `/www/luci-static/resources/view/tailscale.js` | 0644 | 上游 | LuCI 页面前端 |
+| 8 | `/usr/share/luci/menu.d/luci-app-tailscale-community.json` | 0644 | 上游+补丁 | 菜单注册 |
+| 9 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
+| 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
+| 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游+补丁 | 把 LuCI 设置应用到 tailscale |
+| 12 | `/usr/libexec/tailscale-setup-firewall` | 0755(见 8.1) | 上游+补丁 | "自动配置防火墙"的后台执行者 |
+| 13 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | - | 上游 | 简体中文翻译 |
+| 14 | `/etc/uci-defaults/luci-i18n-tailscale-community-zh-cn` | - | 上游 | 首次开机登记语言名 |
 
-权限为 `-` 的两个文件由 `luci.mk` 在构建时生成.
+权限为 `-` 的两个文件由 `luci.mk` 在构建时生成. 第 6 项由 ImmortalWrt 的构建系统生成, 不是上游 Makefile 安装的, 见 3.6.
 
 ## 3. `tailscale` 包(GuNanOvO)
 
@@ -112,6 +113,14 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 2. 只供页面登录用, 守护进程和 `tailscale-settings` 都不读取: `custom_login_url`, `custom_login_AuthKey`. 点 Save & Apply 后, Auth Key 会以明文留在该文件里
 
 **注意**: 固件没有选 `iptables-nft` 和 `iptables-zz-legacy`(三份 `.config-*` 均为 not set), `fw_mode` 实际只能用 `nftables`, 但 LuCI 下拉框里仍有 `iptables`.
+
+### 3.6 `/lib/upgrade/keep.d/tailscale`
+
+> 标记: 上游 | 权限: 0644 | 内容: `/etc/tailscale/` | 由构建系统生成
+
+**作用**: sysupgrade 的保留清单. 刷机时选"保留配置", `/etc/tailscale/`(登录状态 `tailscaled.state`, DERP 地图缓存, DNS 缓存等)会随配置一起保留.
+
+**来源**: 上游 Makefile 没有安装这个文件. 它的 `Package/tailscale/conffiles` 列了 `/etc/config/tailscale` 和 `/etc/tailscale/` 两项, ImmortalWrt 的 `include/package-ipkg.mk` 把其中在包内不是普通文件的条目(这里是目录 `/etc/tailscale/`)写入包内的 `/lib/upgrade/keep.d/<包名>`. 安装固件的设备上已验证: `opkg files tailscale` 有这一项, `tailscale.conffiles` 里只有 `/etc/config/tailscale`, 刷机后 `tailscaled.state` 保留了下来.
 
 ## 4. `luci-app-tailscale-community`(Tokisaki-Galaxy)
 
@@ -211,7 +220,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 1. `/etc/rc.d/S80tailscale`: 开机启动链接, 指向 `/etc/init.d/tailscale`
 2. `/etc/rc.d/S15tailscale-ip-rules`: 开机启动链接, 指向 `/etc/init.d/tailscale-ip-rules`
 3. `/etc/rc.d/S99tailscale-settings`, `/etc/rc.d/K10tailscale-settings`: 开机启动和停止链接, 指向 `/etc/init.d/tailscale-settings`
-4. `/usr/lib/opkg/info/<包名>.*`: 三个包各自的 opkg 元数据(`.control`, `.list`, `.conffiles` 等). `tailscale` 的 conffiles 声明 `/etc/config/tailscale` 和 `/etc/tailscale/`, 用于 sysupgrade 保留配置和登录状态
+4. `/usr/lib/opkg/info/<包名>.*`: 三个包各自的 opkg 元数据(`.control`, `.list`, `.conffiles` 等). `tailscale.conffiles` 只含 `/etc/config/tailscale`, `/etc/tailscale/` 由 `/lib/upgrade/keep.d/tailscale`(见 3.6)保留, 两者用于 sysupgrade 保留配置和登录状态
 
 前三项由镜像构建时的 `default_postinst` 对包内 init 脚本执行 enable 生成.
 
