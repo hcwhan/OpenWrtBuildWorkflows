@@ -201,7 +201,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 **设计要点**:
 
 1. 为什么需要: `tailscale` 包的 init 脚本没有"是否自启"的开关(见 3.3). `tailscale-settings` 在 LuCI 里关闭服务时会 disable 这个链接, 但链接被新镜像重新带来(例如刷机保留配置后)时, 它不会再执行. 需要有东西在 S80 之前读 `service_enabled`
-2. 为什么是独立脚本, 不补丁 `tailscale.init`: `service_enabled` 是 LuCI 应用的选项, 读它的逻辑放在 `luci-app-tailscale-community` 里, `tailscale` 包保持原样
+2. 为什么是独立脚本: `service_enabled` 是 LuCI 应用的选项, 读它的逻辑放在 `luci-app-tailscale-community` 里, `tailscale` 包保持原样
 3. 为什么早于 80 就有效: procd 开机时先列出所有 `/etc/rc.d/S*`, 再逐个顺序执行(同一时刻只跑一个), 执行那一刻才按路径启动. S70 先删掉链接, 轮到 S80 时路径已不存在, 启动失败并被跳过(依据 procd 源码 `rcS.c`)
 4. 重新开启: 在 LuCI 打开服务后, `tailscale-settings` 会 enable 并启动 `tailscale`, 链接随之恢复
 5. 安装方式: `feeds-after-script.sh` 用 `install -m 0755` 放进包的 `root/etc/init.d/`, `luci.mk` 随包安装, 镜像构建时由 `default_postinst` 生成 `S70tailscale-boot-gate` 链接
@@ -280,6 +280,6 @@ ls -l /etc/rc.d/ | grep tailscale
 # 3. 执行权限, 预期 -rwxr-xr-x
 ls -l /usr/libexec/tailscale-setup-firewall
 
-# 4. UPX 压缩, 输出 0 表示未压缩(见 3.1, 旧固件上实测为 0, tailscaled 为 26596696 字节)
+# 4. UPX 压缩, 输出 0 表示未压缩
 grep -c 'UPX!' /usr/sbin/tailscaled
 ```
