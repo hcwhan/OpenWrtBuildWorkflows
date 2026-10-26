@@ -10,6 +10,7 @@ a = e:option(Value, "name", translate("name"))
 a.optional = false
 nolimit_mac = e:option(Value, "macaddr", translate("macaddr"))
 nolimit_mac.rmempty = false
+nolimit_mac.datatype = "macaddr"
 i.net.mac_hints(function(e, t) nolimit_mac:value(e, "%s (%s)" % {e, t}) end)
 nolimit_eth = e:option(Value, "maceth", translate("maceth"))
 nolimit_eth.rmempty = false

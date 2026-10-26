@@ -9,10 +9,10 @@ function index()
 end
 
 function awake(sections)
-	lan = x:get("wolplus",sections,"maceth")
-	mac = x:get("wolplus",sections,"macaddr")
+	local lan = x:get("wolplus",sections,"maceth")
+	local mac = x:get("wolplus",sections,"macaddr")
     local e = {}
-    cmd = "/usr/bin/etherwake -D -i " .. lan .. " -b " .. mac .. " 2>&1"
+    local cmd = "/usr/bin/etherwake -D -i " .. luci.util.shellquote(lan) .. " -b " .. luci.util.shellquote(mac) .. " 2>&1"
 	local p = io.popen(cmd)
 	local msg = ""
 	if p then
