@@ -12,6 +12,9 @@
 # copyright information.
 #-------------------------------------------------------------------------------------------------------
 
+# This file is a template, it does not run from this directory. To use it, copy it to .github/workflows/<name>.yaml
+# and change name, WORK_NAME, REPO_URL, REPO_BRANCH and CONFIG_FILE.
+
 # Workflow name which is showed in GitHub Actions.
 name: Build Example for Device
 
