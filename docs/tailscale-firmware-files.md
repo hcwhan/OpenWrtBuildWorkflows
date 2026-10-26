@@ -21,10 +21,10 @@
 | # | 包 | 来源 | 文件数 |
 |---|----|------|--------|
 | 1 | `tailscale` | [GuNanOvO/openwrt-tailscale](https://github.com/GuNanOvO/openwrt-tailscale) | 6 |
-| 2 | `luci-app-tailscale-community` | [Tokisaki-Galaxy/luci-app-tailscale-community](https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community) | 6 |
+| 2 | `luci-app-tailscale-community` | [Tokisaki-Galaxy/luci-app-tailscale-community](https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community) | 7 |
 | 3 | `luci-i18n-tailscale-community-zh-cn` | 同 2, 只构建简体中文 | 2 |
 
-合计 14 个文件(含 1 个符号链接). 三份 `.config-*` 里这三个包均为 `=y`.
+合计 15 个文件(含 1 个符号链接). 三份 `.config-*` 里这三个包均为 `=y`.
 
 ### 2.2 文件总表
 
@@ -32,7 +32,7 @@
 |---|------|------|------|------|
 | 1 | `/usr/sbin/tailscaled` | 0755 | 上游+补丁 | 守护进程, 内置命令行 |
 | 2 | `/usr/sbin/tailscale` | 符号链接 | 上游 | 命令行入口, 指向 `tailscaled` |
-| 3 | `/etc/init.d/tailscale` | 0755 | 上游+补丁 | 守护进程的 procd 启动脚本 |
+| 3 | `/etc/init.d/tailscale` | 0755 | 上游 | 守护进程的 procd 启动脚本 |
 | 4 | `/etc/init.d/tailscale-ip-rules` | 0755 | 项目 | 开机补 ip rule, 防子网劫持 |
 | 5 | `/etc/config/tailscale` | 0644 | 上游 | UCI 配置 |
 | 6 | `/lib/upgrade/keep.d/tailscale` | 0644 | 上游 | sysupgrade 保留清单, 内容为 `/etc/tailscale/` |
@@ -42,8 +42,9 @@
 | 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
 | 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游 | 把 LuCI 设置应用到 tailscale |
 | 12 | `/usr/libexec/tailscale-setup-firewall` | 0755 | 上游 | "自动配置防火墙"的后台执行者 |
-| 13 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | - | 上游 | 简体中文翻译 |
-| 14 | `/etc/uci-defaults/luci-i18n-tailscale-community-zh-cn` | - | 上游 | 首次开机登记语言名 |
+| 13 | `/etc/init.d/tailscale-boot-gate` | 0755 | 项目 | 开机时按 `service_enabled` 决定 tailscale 是否自启 |
+| 14 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | - | 上游 | 简体中文翻译 |
+| 15 | `/etc/uci-defaults/luci-i18n-tailscale-community-zh-cn` | - | 上游 | 首次开机登记语言名 |
 
 权限为 `-` 的两个文件由 `luci.mk` 在构建时生成. 第 6 项由 ImmortalWrt 的构建系统生成, 不是上游 Makefile 安装的, 见 3.6.
 
@@ -71,11 +72,11 @@
 
 ### 3.3 `/etc/init.d/tailscale`
 
-> 标记: 上游+补丁 | 权限: 0755 | START=80
+> 标记: 上游 | 权限: 0755 | START=80
 
 **作用**: procd 服务脚本. 启动前和停止时执行 `tailscaled --cleanup`; 读取 `/etc/config/tailscale` 后拼出 `tailscaled --port <port> --state <state_file>`; 用环境变量 `TS_DEBUG_FIREWALL_MODE` 传入防火墙模式; 设置 `TS_NO_LOGS_NO_SUPPORT=true` 关闭日志上传; 异常退出自动重启(respawn).
 
-**补丁**: 在 `config_load tailscale` 之后插入 `service_enabled` 检查: 值不为 1 时, 开机不启动, 并删除 `/etc/rc.d/S80tailscale` 链接(`feeds-insert-script.sh` 的 `# tailscale` 段).
+**自启**: 脚本里没有"是否自启"的配置项, 自启只取决于镜像构建时由 `default_postinst` 生成的 `/etc/rc.d/S80tailscale` 链接. 本项目不改这个脚本, 开机时是否保留这个链接由 `luci-app-tailscale-community` 里新增的 `tailscale-boot-gate`(见 4.7)按 `service_enabled` 决定.
 
 ### 3.4 `/etc/init.d/tailscale-ip-rules`
 
@@ -191,6 +192,20 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 
 **作用**: "自动配置防火墙"的后台执行者(参数为 run-id). 加锁 `/var/run/tailscale-fwsetup.lock.d`, 依次执行 `/etc/init.d/network reload` 和 `/etc/init.d/firewall reload`, 把进度(`running`, `done`, `failed`, `busy`)写入 `/var/run/tailscale-fwsetup.status`. 单独拆成脚本, 是为了让 RPC 先返回, 避免 reload 网络时掐断正在处理的请求(反向代理, 或经 Tailscale 访问 LuCI).
 
+### 4.7 `/etc/init.d/tailscale-boot-gate`
+
+> 标记: 项目 | 权限: 0755 | START=70 | 源文件: `feeds-patch/luci-app-tailscale-community/tailscale-boot-gate.init`
+
+**作用**: 每次开机(早于 `S80tailscale`)读 `service_enabled`. 值为 0 且 `/etc/rc.d/S80tailscale` 链接还在时, 删掉这个链接, 这次开机的 S80 就不会启动 `tailscaled`; 值为 1 或选项不存在时什么也不做. 只删链接, 不停止进程, 不改配置. 只实现 `boot()`, 只在开机时执行; 手动 `start` / `restart` 和 opkg 安装后的 `start` 都是空操作, 手动验证用 `/etc/init.d/tailscale-boot-gate boot`.
+
+**设计要点**:
+
+1. 为什么需要: `tailscale` 包的 init 脚本没有"是否自启"的开关(见 3.3). `tailscale-settings` 在 LuCI 里关闭服务时会 disable 这个链接, 但链接被新镜像重新带来(例如刷机保留配置后)时, 它不会再执行. 需要有东西在 S80 之前读 `service_enabled`
+2. 为什么是独立脚本, 不补丁 `tailscale.init`: `service_enabled` 是 LuCI 应用的选项, 读它的逻辑放在 `luci-app-tailscale-community` 里, `tailscale` 包保持原样
+3. 为什么早于 80 就有效: procd 开机时先列出所有 `/etc/rc.d/S*`, 再逐个顺序执行(同一时刻只跑一个), 执行那一刻才按路径启动. S70 先删掉链接, 轮到 S80 时路径已不存在, 启动失败并被跳过(依据 procd 源码 `rcS.c`)
+4. 重新开启: 在 LuCI 打开服务后, `tailscale-settings` 会 enable 并启动 `tailscale`, 链接随之恢复
+5. 安装方式: `feeds-after-script.sh` 用 `install -m 0755` 放进包的 `root/etc/init.d/`, `luci.mk` 随包安装, 镜像构建时由 `default_postinst` 生成 `S70tailscale-boot-gate` 链接
+
 ## 5. `luci-i18n-tailscale-community-zh-cn`(同一来源)
 
 依赖: `luci-app-tailscale-community`.
@@ -216,9 +231,10 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 1. `/etc/rc.d/S80tailscale`: 开机启动链接, 指向 `/etc/init.d/tailscale`
 2. `/etc/rc.d/S15tailscale-ip-rules`: 开机启动链接, 指向 `/etc/init.d/tailscale-ip-rules`
 3. `/etc/rc.d/S99tailscale-settings`, `/etc/rc.d/K10tailscale-settings`: 开机启动和停止链接, 指向 `/etc/init.d/tailscale-settings`
-4. `/usr/lib/opkg/info/<包名>.*`: 三个包各自的 opkg 元数据(`.control`, `.list`, `.conffiles` 等). `tailscale.conffiles` 只含 `/etc/config/tailscale`, `/etc/tailscale/` 由 `/lib/upgrade/keep.d/tailscale`(见 3.6)保留, 两者用于 sysupgrade 保留配置和登录状态
+4. `/etc/rc.d/S70tailscale-boot-gate`: 开机启动链接, 指向 `/etc/init.d/tailscale-boot-gate`
+5. `/usr/lib/opkg/info/<包名>.*`: 三个包各自的 opkg 元数据(`.control`, `.list`, `.conffiles` 等). `tailscale.conffiles` 只含 `/etc/config/tailscale`, `/etc/tailscale/` 由 `/lib/upgrade/keep.d/tailscale`(见 3.6)保留, 两者用于 sysupgrade 保留配置和登录状态
 
-前三项由镜像构建时的 `default_postinst` 对包内 init 脚本执行 enable 生成.
+前四项由镜像构建时的 `default_postinst` 对包内 init 脚本执行 enable 生成.
 
 ### 6.2 运行后才出现(不在固件里)
 
@@ -245,6 +261,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 2. 保存设置: `tailscale.js` 写 UCI `/etc/config/tailscale` → 触发 `tailscale-settings` 重载 → `tailscale set ...`
 3. 守护进程启动参数: `/etc/config/tailscale` → `/etc/init.d/tailscale` → `tailscaled`
 4. 网络层: `tailscale-ip-rules` 开机写 `/etc/config/network` 的 ip rule; "自动配置防火墙"写 `network`/`firewall` 后由 `tailscale-setup-firewall` 重载
+5. 开机自启: `tailscale-boot-gate`(S70)读 UCI `service_enabled`, 为 0 就删掉 `/etc/rc.d/S80tailscale` → procd 依次执行 S 链接, 跳过已不存在的 S80 → `tailscale` 不启动
 
 ## 8. 需要留意与验证
 
@@ -256,7 +273,8 @@ opkg files tailscale
 opkg files luci-app-tailscale-community
 opkg files luci-i18n-tailscale-community-zh-cn
 
-# 2. 开机链接, 预期 4 个: S15tailscale-ip-rules, S80tailscale, S99tailscale-settings, K10tailscale-settings
+# 2. 开机链接, 预期 5 个: S15tailscale-ip-rules, S70tailscale-boot-gate, S80tailscale, S99tailscale-settings, K10tailscale-settings
+#    (service_enabled=0 时开机会删掉 S80tailscale, 只剩 4 个)
 ls -l /etc/rc.d/ | grep tailscale
 
 # 3. 执行权限, 预期 -rwxr-xr-x

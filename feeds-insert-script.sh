@@ -31,8 +31,6 @@ test -d "$TAILSCALE_SRC/package/tailscale" || {
 cp -a "$TAILSCALE_SRC/package/tailscale"                             "$TAILSCALE_PKG"
 rm -rf "$TAILSCALE_SRC"
 
-TAILSCALE_INIT="$TAILSCALE_PKG/files/tailscale.init"
-
 # Makefile 加 PKG_BUILD_DEPENDS:=golang/host.
 apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/build-depends-golang-host.patch"
 
@@ -44,22 +42,6 @@ apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-upx-la
 
 # Makefile 删除维护者专用的 5 行导出逻辑.
 apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-maintainer-export.patch"
-
-# 开机时遵循 tailscale.settings.service_enabled: 为 0 时跳过启动, 并删除 /etc/rc.d/S80tailscale 链接.
-# 此处通过 S80tailscale 链接调用, 直接用 rc.common 的 disable() 会作用到错误的名称上, 所以改用 init 脚本的路径.
-test "$(grep -c '^  config_load tailscale$' "$TAILSCALE_INIT")" = 1 || {
-  echo "ERROR: expected exactly one '  config_load tailscale' in $TAILSCALE_INIT" >&2
-  exit 1
-}
-sed -i '/^  config_load tailscale$/r /dev/stdin'                          "$TAILSCALE_INIT" <<'EOF'
-  local service_enabled
-  config_get_bool service_enabled "settings" service_enabled 1
-  if [ "$service_enabled" != 1 ]; then
-    /etc/init.d/tailscale disable
-    logger -t tailscale "service_enabled=0, skip start and remove boot link"
-    return 0
-  fi
-EOF
 
 # 新增 /etc/init.d/tailscale-ip-rules: 开机时(早于 network)补齐防子网劫持的 netifd ip rule 配置节.
 # 先把 init 脚本复制进包的 files/, 再用补丁让 Makefile 把它安装到 /etc/init.d/.
