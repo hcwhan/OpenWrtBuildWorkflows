@@ -3,7 +3,7 @@ tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/M
 应用: feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
 作用: 删除 Package/tailscale/install 里仅面向维护者的 5 行(3 行注释, 加上 mkdir -p 和 $(CP) 两行),
 即把 tailscaled 复制一份到 $(TOPDIR)/bin/packages/<arch>/base 的逻辑.
-原因: 这是上游为给本项目仓库保留一份二进制副本而写的, 固件构建用不到.
+原因: 这是上游为给自己的仓库保留一份二进制副本而写的, 固件构建用不到.
 
 --- a/Makefile
 +++ b/Makefile
