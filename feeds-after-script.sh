@@ -5,6 +5,9 @@ set -euo pipefail
 WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 FEEDS_HCWHAN="$WORKFLOW_ROOT/feeds-hcwhan"
 
+# 引入共用函数 apply_patch.
+source "$WORKFLOW_ROOT/feeds-common.sh"
+
 
 # luci-app-tailscale-community 开始
 TAILSCALE_COMMUNITY_SRC=/tmp/luci-app-tailscale-community-src
@@ -27,6 +30,12 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
   exit 1
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
+
+# tailscale-settings 的 apply_settings 在 tailscaled 没运行时跳过 tailscale set.
+apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/skip-apply-when-not-running.patch"
+
+# tailscale-settings 的 reload_service 里 handle_service_state 之前补 config_load tailscale.
+apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/reload-config-load.patch"
 
 # 新增 /etc/init.d/tailscale-boot-gate: 开机时(早于 S80tailscale)service_enabled=0 就删掉 tailscale 的开机链接, 这次开机不启动 tailscaled.
 # 放进包的 root/ 下, luci.mk 会随包安装; 用 install -m 0755 保证有可执行权限.

@@ -1,0 +1,19 @@
+
+/etc/init.d/tailscale-settings(上游 Tokisaki-Galaxy/luci-app-tailscale-community)的补丁.
+应用: feeds-after-script.sh 的 # luci-app-tailscale-community 段, patch -p1 -F0 在包目录下应用, 上下文与上游不匹配时构建失败.
+作用: reload_service 里 mkdir -p "$STATE_DIR" 之后, 调用 handle_service_state 之前补 config_load tailscale.
+原因: reload 时脚本是重新运行的, 还没读过 /etc/config/tailscale, 但 reload_service 调用的 handle_service_state 里, sync_service_enabled 要读 service_enabled, daemon_signature 要读 port 等选项(都用 config_get).
+没读配置时 config_get 只会返回默认值(service_enabled=1, port=41641 等), 真正的 config_load 在更后面的 apply_settings 里, 已经晚了. 后果:
+1. 在 LuCI 关闭服务: 脚本读到的 service_enabled 仍是 1, 不会停掉守护进程.
+2. 服务已关闭时: 任意一次 reload 都会把守护进程重新启动.
+3. port, fw_mode, state_file, 日志开关这几个要重启守护进程才生效的选项: 脚本拿默认值算"指纹"去比较, 真实配置对不上.
+   原来是默认值, 改成别的值时看不出变化, 不会重启; 原来就是非默认值时, 开机后的第一次 reload(例如第一次在 LuCI 保存配置)会无故重启一次守护进程, 之后记录的指纹被默认值覆盖, 不再重启, 但此后选项真的改了也检测不到.
+
+--- a/root/etc/init.d/tailscale-settings
++++ b/root/etc/init.d/tailscale-settings
+@@ -440,4 +440,5 @@
+ reload_service() {
+ 	mkdir -p "$STATE_DIR"
++	config_load tailscale
+ 	handle_service_state
+ }

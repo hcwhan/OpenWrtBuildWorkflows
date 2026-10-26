@@ -1,0 +1,22 @@
+
+/etc/init.d/tailscale-settings(上游 Tokisaki-Galaxy/luci-app-tailscale-community)的补丁.
+应用: feeds-after-script.sh 的 # luci-app-tailscale-community 段, patch -p1 -F0 在包目录下应用, 上下文与上游不匹配时构建失败.
+作用: apply_settings 里 tailscaled 没在运行时跳过 tailscale set, 日志写 "tailscale is not running, skip applying settings".
+原因: tailscale set 需要守护进程在运行. service_enabled=0 时开机不会启动 tailscaled(见 tailscale-boot-gate.init), 无条件的 apply_settings 必然失败(日志里出现 "Failed to apply settings").
+按守护进程是否在运行判断, 不依赖 service_enabled, 守护进程因其他原因没起来时也一并跳过.
+判断放在 config_load tailscale 之后: 跳过拼参数和 tailscale set, 但 config_load 仍然完成, 不影响后面 apply_dns_forward 读配置.
+
+--- a/root/etc/init.d/tailscale-settings
++++ b/root/etc/init.d/tailscale-settings
+@@ -172,6 +172,11 @@
+
+ 	config_load tailscale
+
++	if ! tailscale_running; then
++		logger -t "$NAME" "tailscale is not running, skip applying settings"
++		return 0
++	fi
++
+ 	local accept_routes advertise_exit_node exit_node exit_node_allow_lan_access
+ 	local ssh shields_up runwebclient nosnat hostname
+ 	local enable_relay relay_server_port disable_fw_config
