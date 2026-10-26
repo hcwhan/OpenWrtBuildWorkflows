@@ -43,14 +43,6 @@ git clone --depth 1 https://github.com/sbwml/v2ray-geodata           "$FEEDS_HCW
 }
 # 删除嵌套的 .git, 避免这些克隆被识别为独立仓库, 也避免被复制进构建树.
 rm -rf "$FEEDS_HCWHAN/mosdns/.git" "$FEEDS_HCWHAN/v2ray-geodata/.git"
-
-# 注释掉默认配置里的 '- exec: prefer_ipv4'(关闭 IPv4 优先).
-MOSDNS_CONFIG="$FEEDS_HCWHAN/mosdns/luci-app-mosdns/root/etc/mosdns/config_custom.yaml"
-grep -qF -- '- exec: prefer_ipv4' "$MOSDNS_CONFIG" || {
-  echo "ERROR: '- exec: prefer_ipv4' not found in $MOSDNS_CONFIG" >&2
-  exit 1
-}
-sed -i 's/- exec: prefer_ipv4/# - exec: prefer_ipv4/'                "$MOSDNS_CONFIG"
 # luci-app-mosdns 结束
 
 
