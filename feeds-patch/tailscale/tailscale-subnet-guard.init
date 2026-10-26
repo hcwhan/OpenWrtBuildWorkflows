@@ -1,0 +1,273 @@
+#!/bin/sh /etc/rc.common
+
+# tailscale 会把接受自其他节点的子网路由装入路由表 52(pref 5270, 在 OpenWrt 上检测到 mwan3 时为 1370), 该表会先于 main 表被查询.
+# 如果其他节点通告的子网与本地网段重叠(例如 LAN), 就会劫持这个网段的流量.
+# 本脚本在 tailscale 运行期间每 INTERVAL 秒对账一次, 只对被接收路由覆盖的本地网段添加规则:
+#   pref 1295 to <本地网段> lookup main suppress_prefixlength 0
+# 即先查 main 表并忽略其默认路由, 使该网段的具体本地路由优先于路由表 52.
+# 没有重叠时不添加任何规则; 重叠消失, 或 tailscale 停止时, 对应的规则会被删除.
+#
+# 判定(IPv4 和 IPv6 各自独立):
+# 1. 接收路由 R: 路由表 52 里的路由, 不含默认路由, throw/blackhole/unreachable/prohibit 等特殊类型的路由,
+#    以及落在 tailnet 地址段(100.64.0.0/10, fd7a:115c:a1e0::/48)内的路由.
+# 2. 本地网段 L: main 表里的非默认路由, 同样不含特殊类型. 前缀过短(IPv4 短于 /8, IPv6 短于 /16)的不算:
+#    例如 OpenVPN 的拆分默认路由 0.0.0.0/1 + 128.0.0.0/1 会与任何 R 重叠, 而 suppress_prefixlength 0 抑制不了 /1,
+#    给它们加规则会把 tailnet 的流量也抢到 main.
+# 3. L 与任一 R 相等或互相包含就对该 L 加规则. R 只覆盖 L 的一部分时, 这一部分主机同样会被劫持.
+# "tailscale 已启动且开启了接收子网"由路由表 52 的内容隐含: tailscale 只在开启 accept-routes 时才为对端的子网装路由.
+# 唯一的例外: 出口节点且未允许访问本地网络(LuCI 会强制允许, 只有命令行能设成这样)时, tailscale 会把本机的本地网段
+# 装成路由表 52 的普通路由, 同样会被判为重叠并加规则, 效果是本机仍可访问本地网段.
+#
+# 规则范围: 规则的 to 是被覆盖的 L 本身(取 main 表里的前缀), 不是 R, 也不是 L 与 R 的交集, 每个 L 一条:
+# 1. R 与 L 相等: 规则管 L.
+# 2. R 比 L 大(例如 R 是 192.168.0.0/16, L 是 192.168.1.0/24): 规则只管 L, R 里 L 之外的地址仍走 tailnet.
+# 3. R 比 L 小(例如 R 是 192.168.1.128/25, L 是 192.168.1.0/24): 规则仍管整个 L, 包括 R 之外的部分.
+# 4. 多个 R 覆盖同一个 L 时仍只有一条; 一个 R 覆盖多个 L 时, 每个 L 各一条.
+# L 越宽规则越宽: L 不限于接口的直连网段, main 里的静态路由也算. main 里有 10.0.0.0/8 这类宽静态路由时,
+# 只要有 R 落在其中(例如对端通告的 10.8.0.0/24, 它比 main 里的路由更具体), 整个 10.0.0.0/8 都会优先走 main,
+# 该 R 整段用不上.
+#
+# pref 1295 排在 mwan3 的 iif 规则(pref 1001+)之后, tailscale 自带规则(5210-5270, 在 OpenWrt 上检测到 mwan3 时为
+# 1310-1370)之前. mwan3 自身就会把 main 里有非默认路由的目的地标记为默认路由, 绕过它的策略规则, 所以这些规则对 mwan3
+# 没有行为差异.
+#
+# 规则是运行时的 ip rule, 不写入 /etc/config/network, 所以 LuCI 看不到, 也不会改动 config 文件.
+# netifd 每次启动都会清空所有 ip rule, 而 tailscaled 只会恢复其自身 pref 范围内的规则, 所以每轮都拿期望集合和
+# ip rule show 里 pref 1295 的现状对账: 缺则补, 多则删. 只处理形如 from all to <网段> lookup main suppress_prefixlength 0
+# 的规则, 不会动其他规则.
+#
+# 没有 START, 不随开机启动: 由 tailscale-subnet-guard-service-hooks.patch 在 tailscale.init 里加的
+# service_started/service_stopped 钩子随 tailscale 的启停而启停. 也可以手动执行 start, stop, restart.
+# 停止时由 service_stopped 先等 1 秒再删除全部规则(原因见该函数里的注释).
+# 本脚本由 2.feeds-insert-script.sh 注入 tailscale 包并随包安装. 镜像构建时 default_postinst 会对它执行 enable,
+# 没有 START/STOP 时 enable 返回 1, 但该返回值被忽略, 不影响构建, 也不会生成 /etc/rc.d 链接.
+
+USE_PROCD=1
+EXTRA_COMMANDS="watch"
+
+PREF=1295
+INTERVAL=5
+
+# 对账用的 awk 程序. 标准输入分三段, 每段以单独成行的 R, L, E 开头:
+#   R: ip route show table 52    (接收路由)
+#   L: ip route show table main  (本地网段)
+#   E: ip rule show              (现有规则)
+# 输出需要执行的 "add <网段>" 和 "del <网段>".
+# 前缀先转成由 a(0)和 b(1)组成的位串再比较: 不用 0/1 数字字符, 避免某些 awk 把它们当数字比较而丢失精度.
+AWK_PROG='
+function bits4(a,   n, i, v, b, out) {
+  n = split(a, P4, ".")
+  if (n != 4) return ""
+  out = ""
+  for (i = 1; i <= 4; i++) {
+    if (P4[i] !~ /^[0-9]+$/) return ""
+    v = P4[i] + 0
+    if (v > 255) return ""
+    for (b = 1; b <= 8; b++) {
+      if (v >= PW[b]) {
+        out = out "b"
+        v -= PW[b]
+      } else {
+        out = out "a"
+      }
+    }
+  }
+  return out
+}
+
+function hex16(g,   i, out) {
+  g = tolower(g)
+  if (g !~ /^[0-9a-f]+$/ || length(g) > 4) return ""
+  out = ""
+  for (i = 1; i <= length(g); i++) out = out H[substr(g, i, 1)]
+  while (length(out) < 16) out = "a" out
+  return out
+}
+
+function gbits(s,   n, i, t, out) {
+  NG = 0
+  if (s == "") return ""
+  n = split(s, G6, ":")
+  out = ""
+  for (i = 1; i <= n; i++) {
+    if (i == n && index(G6[i], ".")) {
+      t = bits4(G6[i])
+      NG += 2
+    } else {
+      t = hex16(G6[i])
+      NG++
+    }
+    if (t == "") return "x"
+    out = out t
+  }
+  return out
+}
+
+function bits6(a,   k, l, r, nl, nr, z, i) {
+  k = index(a, "::")
+  if (k) {
+    l = substr(a, 1, k - 1)
+    r = (k + 1 < length(a)) ? substr(a, k + 2) : ""
+  } else {
+    l = a
+    r = ""
+  }
+  l = gbits(l)
+  nl = NG
+  r = gbits(r)
+  nr = NG
+  if (l == "x" || r == "x") return ""
+  if (!k) return (nl == 8) ? l : ""
+  if (nl + nr > 7) return ""
+  z = ""
+  for (i = nl + nr; i < 8; i++) z = z "aaaaaaaaaaaaaaaa"
+  return l z r
+}
+
+function parse(t,   k, a) {
+  k = index(t, "/")
+  if (k) {
+    a = substr(t, 1, k - 1)
+    PL = substr(t, k + 1)
+    if (PL !~ /^[0-9]+$/) return 0
+  } else {
+    a = t
+    PL = MAXLEN
+  }
+  PL += 0
+  if (PL > MAXLEN) return 0
+  PB = (fam == "6") ? bits6(a) : bits4(a)
+  return PB != ""
+}
+
+BEGIN {
+  split("aaaa aaab aaba aabb abaa abab abba abbb baaa baab baba babb bbaa bbab bbba bbbb", Q, " ")
+  for (x = 0; x < 16; x++) H[substr("0123456789abcdef", x + 1, 1)] = Q[x + 1]
+  pw = 128
+  for (x = 1; x <= 8; x++) {
+    PW[x] = pw
+    pw = pw / 2
+  }
+  PREFC = pref ":"
+  if (fam == "6") {
+    MAXLEN = 128
+    MINLEN = 16
+    TN = "fd7a:115c:a1e0::"
+    TNL = 48
+  } else {
+    MAXLEN = 32
+    MINLEN = 8
+    TN = "100.64.0.0"
+    TNL = 10
+  }
+  parse(TN)
+  TB = PB
+  cr = 0
+  cl = 0
+}
+
+$0 == "R" || $0 == "L" || $0 == "E" { mode = $0; next }
+
+mode == "R" {
+  if (parse($1) && PL > 0 && !(PL >= TNL && substr(PB, 1, TNL) == substr(TB, 1, TNL))) {
+    cr++
+    rb[cr] = PB
+    rl[cr] = PL
+  }
+  next
+}
+
+mode == "L" {
+  if (parse($1) && PL >= MINLEN) {
+    cl++
+    lt[cl] = $1
+    lb[cl] = PB
+    ll[cl] = PL
+  }
+  next
+}
+
+mode == "E" && $1 == PREFC {
+  ok = 1
+  dst = ""
+  tab = ""
+  sup = ""
+  for (x = 2; x <= NF; x++) {
+    if ($x == "from" && $(x + 1) == "all") {
+      x++
+    } else if ($x == "to") {
+      x++
+      dst = $x
+    } else if ($x == "lookup") {
+      x++
+      tab = $x
+    } else if ($x == "suppress_prefixlength") {
+      x++
+      sup = $x
+    } else {
+      ok = 0
+    }
+  }
+  if (ok && dst != "" && (tab == "main" || tab == "254") && sup == "0" && parse(dst)) have["k" substr(PB, 1, PL)] = dst
+}
+
+END {
+  for (x = 1; x <= cl; x++) {
+    for (y = 1; y <= cr; y++) {
+      m = (ll[x] < rl[y]) ? ll[x] : rl[y]
+      if (substr(lb[x], 1, m) == substr(rb[y], 1, m)) {
+        want["k" substr(lb[x], 1, ll[x])] = lt[x]
+        break
+      }
+    }
+  }
+  for (key in want) if (!(key in have)) print "add", want[key]
+  for (key in have) if (!(key in want)) print "del", have[key]
+}
+'
+
+reconcile() {  # reconcile <4|6> [clean]
+  local v="$1"
+  {
+    if [ "$2" != clean ]; then
+      echo R
+      ip -"$v" route show table 52 2>/dev/null
+      echo L
+      ip -"$v" route show table main 2>/dev/null
+    fi
+    echo E
+    ip -"$v" rule show 2>/dev/null
+  } | awk -v fam="$v" -v pref="$PREF" "$AWK_PROG" | while read -r act prefix; do
+    ip -"$v" rule "$act" pref "$PREF" to "$prefix" lookup main suppress_prefixlength 0 &&
+      logger -t tailscale-subnet-guard "$act rule: to $prefix"
+  done
+}
+
+watch() {
+  # rc.common 加载 procd.sh 时会在 fd 1000 上取得 /var/lock/procd_<名字>.lock 的 flock, 常驻期间不放的话,
+  # 之后执行本脚本的任何动作(start, stop, restart, status 等)都会卡在 procd_lock 上. 子进程(sleep)也就不再继承这把锁.
+  exec 1000>&-
+
+  while :; do
+    reconcile 4
+    reconcile 6
+    sleep "$INTERVAL"
+  done
+}
+
+start_service() {
+  procd_open_instance
+  procd_set_param command "$initscript" watch
+  procd_set_param respawn
+  procd_set_param stderr 1
+  procd_close_instance
+}
+
+service_stopped() {
+  # procd 只给 watch 主进程发 SIGTERM, 对账管道里的子进程会变成孤儿继续跑完, 其中的 ip rule add 可能晚于下面的清理, 留下 1 条规则.
+  # 先等 1 秒让它们落地. 一轮对账超过 1 秒(路由数量极大)时仍可能漏掉, 漏掉的规则由下次 start 的首轮对账纠正.
+  sleep 1
+
+  reconcile 4 clean
+  reconcile 6 clean
+}

@@ -7,7 +7,7 @@
 
 1. 范围: `build_AX3600`, `build_NX30Pro`, `build_x86` 三个工作流, 三个目标的文件清单相同
 2. 依据: 上游 Makefile 与源文件, 本项目补丁脚本, 三份 `.config-*`. 8.1 的部分项在安装固件的设备上核对过, 静态推断的内容已单独标注
-3. 整理日期: 2026-10-25
+3. 整理日期: 2026-10-26
 4. 版本:
    1. `tailscale`: GuNanOvO/openwrt-tailscale 标签 `v1.104.2`(固定), 编译的源码为 tailscale/tailscale `v1.104.2`
    2. `luci-app-tailscale-community`: Tokisaki-Galaxy `master`(未固定, 每次构建取最新), 文件清单可能随上游变化
@@ -32,8 +32,8 @@
 |---|------|------|------|------|
 | 1 | `/usr/sbin/tailscaled` | 0755 | 上游+补丁 | 守护进程, 内置命令行 |
 | 2 | `/usr/sbin/tailscale` | 符号链接 | 上游 | 命令行入口, 指向 `tailscaled` |
-| 3 | `/etc/init.d/tailscale` | 0755 | 上游 | 守护进程的 procd 启动脚本 |
-| 4 | `/etc/init.d/tailscale-ip-rules` | 0755 | 项目 | 开机补 ip rule, 防子网劫持 |
+| 3 | `/etc/init.d/tailscale` | 0755 | 上游+补丁 | 守护进程的 procd 启动脚本, 启停时带动 `tailscale-subnet-guard` |
+| 4 | `/etc/init.d/tailscale-subnet-guard` | 0755 | 项目 | 随 tailscale 启停, 按需增删 ip rule, 防子网劫持 |
 | 5 | `/etc/config/tailscale` | 0644 | 上游 | UCI 配置 |
 | 6 | `/lib/upgrade/keep.d/tailscale` | 0644 | 上游 | sysupgrade 保留清单, 内容为 `/etc/tailscale/` |
 | 7 | `/www/luci-static/resources/view/tailscale.js` | 0644 | 上游 | LuCI 页面前端 |
@@ -50,7 +50,7 @@
 
 ## 3. `tailscale` 包(GuNanOvO)
 
-依赖: `ca-bundle`, `kmod-tun`(均来自 ImmortalWrt 自身).
+依赖: `ca-bundle`, `kmod-tun`, `ip-full`(均来自 ImmortalWrt 自身). 上游只依赖前两项, `ip-full` 由 `tailscale-subnet-guard-install.patch` 加到 `DEPENDS` 末尾: 3.4 的 IPv6 对账要靠它的 `table` 过滤, BusyBox 自带的 `ip` 不支持, IPv6 会静默不生效.
 
 ### 3.1 `/usr/sbin/tailscaled`
 
@@ -72,27 +72,57 @@
 
 ### 3.3 `/etc/init.d/tailscale`
 
-> 标记: 上游 | 权限: 0755 | START=80
+> 标记: 上游+补丁 | 权限: 0755 | START=80
 
 **作用**: procd 服务脚本. 启动前和停止时执行 `tailscaled --cleanup`; 读取 `/etc/config/tailscale` 后拼出 `tailscaled --port <port> --state <state_file>`; 用环境变量 `TS_DEBUG_FIREWALL_MODE` 传入防火墙模式; 设置 `TS_NO_LOGS_NO_SUPPORT=true` 关闭日志上传; 异常退出自动重启(respawn).
 
-**自启**: 脚本里没有"是否自启"的配置项, 自启只取决于镜像构建时由 `default_postinst` 生成的 `/etc/rc.d/S80tailscale` 链接. 本项目不改这个脚本, 开机时是否保留这个链接由 `luci-app-tailscale-community` 里新增的 `tailscale-boot-gate`(见 4.7)按 `service_enabled` 决定.
+**补丁**: 末尾追加 `service_started` 和 `service_stopped` 两个钩子, 分别执行 `/etc/init.d/tailscale-subnet-guard start` 和 `stop`, 使 `tailscale` 启停时一并启停 `tailscale-subnet-guard`(`feeds-patch/tailscale/tailscale-subnet-guard-service-hooks.patch`, 由 `2.feeds-insert-script.sh` 的 `# tailscale` 段应用). `rc.common` 在 `start`, `stop`, `restart` 时调用这两个钩子(`start` 在 `start_service` 之后, `stop` 在进程被终止之后); procd 自动重启崩溃的 `tailscaled` 时不会调用, 此时 `tailscale-subnet-guard` 的常驻进程保持运行. 钩子在设备上用替身服务验证过, 还没有在装有本补丁的固件和真实的 `tailscaled` 上验证, 见 3.4 的验证和 8.1 第 5 项.
 
-### 3.4 `/etc/init.d/tailscale-ip-rules`
+**自启**: 脚本里没有"是否自启"的配置项, 自启只取决于镜像构建时由 `default_postinst` 生成的 `/etc/rc.d/S80tailscale` 链接. 补丁不涉及自启, 开机时是否保留这个链接由 `luci-app-tailscale-community` 里新增的 `tailscale-boot-gate`(见 4.7)按 `service_enabled` 决定.
 
-> 标记: 项目 | 权限: 0755 | START=15 | 源文件: `feeds-patch/tailscale/tailscale-ip-rules.init`
+### 3.4 `/etc/init.d/tailscale-subnet-guard`
 
-**作用**: 每次开机(早于 `S20network`)向 `/etc/config/network` 补 6 个 netifd `rule`/`rule6` 配置节, 已存在的不改. 目的: 对端通告的子网与本地 LAN 重叠时, 防止路由表 52 劫持 LAN 流量.
+> 标记: 项目 | 权限: 0755 | 无 START, 不生成开机链接 | 源文件: `feeds-patch/tailscale/tailscale-subnet-guard.init`
 
-1. pref 1295: 先查 main 表(忽略默认路由), 本地具体路由优先(配置节 `tailscale_local_first`, `tailscale_local_first6`)
-2. pref 1290: tailnet 地址段 `100.64.0.0/10` 和 `fd7a:115c:a1e0::/48` 固定走表 52(配置节 `tailscale_tailnet_pin`, `tailscale_tailnet_pin6`)
-3. pref 1285: tailscaled 自己发出的包(fwmark `0x80000/0xff0000`)走 main 表(配置节 `tailscale_bypass`, `tailscale_bypass6`)
+**作用**: `tailscale` 运行期间, 只有接收到的子网与本地网段重叠时才添加 ip rule, 防止路由表 52(pref 5270)劫持本地网段的流量; 重叠消失或 `tailscale` 停止时删除. 每个被覆盖的本地网段一条, IPv4 和 IPv6 各自独立:
+
+`pref 1295 to <本地网段> lookup main suppress_prefixlength 0`
+
+即先查 main 表并忽略其默认路由, 使该网段的具体本地路由优先于路由表 52. 没有重叠时不添加任何规则. 规则是运行时的 ip rule, 不写入 `/etc/config/network`, LuCI 里看不到, 也不改动配置文件.
+
+**运行方式**:
+
+1. 启停: 没有 START/STOP, 开机时不单独启动, 由 3.3 的钩子随 `tailscale` 启停(`start` 之后启动, `stop` 之后停止, `restart` 先停后启). 也可以手动执行 `/etc/init.d/tailscale-subnet-guard start|stop|restart`
+2. 常驻对账: `start` 让 procd 托管一个常驻进程(`/etc/init.d/tailscale-subnet-guard watch`, 异常退出自动重启), 每 5 秒按路由表 52 和 main 表的现状对账一次: 缺则补, 多则删. 添加和删除最多延迟 5 秒
+3. 停止: `service_stopped` 先等 1 秒, 再删除全部形如 `pref 1295 to <网段> lookup main suppress_prefixlength 0` 的规则, 不等下一轮. 等这 1 秒是因为 procd 只给 `watch` 主进程发 SIGTERM, 对账管道里的子进程会变成孤儿继续跑完, 其中的 `ip rule add` 可能晚于清理而留下 1 条规则. 一轮对账超过 1 秒(路由数量极大)时仍可能漏掉, 漏掉的规则由下次 `start` 的首轮对账纠正(重叠已消失就删除, 仍在就保留)
+4. 日志: 每次增删记一条系统日志, 标签 `tailscale-subnet-guard`, 内容为 `add rule: to <网段>` 或 `del rule: to <网段>`
+5. 运行依赖: `ip`(`ip-full`, 由 `tailscale` 包的 `DEPENDS` 带入, 三份配置也已选上), awk, `logger`(BusyBox 自带)
+
+**判定**(IPv4 和 IPv6 各自独立):
+
+1. 接收路由 R: 路由表 52 里的路由, 不含默认路由, `throw`/`blackhole`/`unreachable`/`prohibit` 等特殊路由, 以及落在 tailnet 地址段(`100.64.0.0/10`, `fd7a:115c:a1e0::/48`)内的路由
+2. 本地网段 L: main 表里的非默认路由, 同样不含特殊路由. 前缀短于 IPv4 的 /8 或 IPv6 的 /16 的不算: 例如 OpenVPN 的拆分默认路由 `0.0.0.0/1` 加 `128.0.0.0/1` 会与任何 R 重叠, 而 `suppress_prefixlength 0` 抑制不了 /1, 给它们加规则会把 tailnet 的流量也抢到 main
+3. L 与任一 R 相等或互相包含, 就对该 L 加规则. R 只覆盖 L 的一部分时, 这一部分主机同样会被劫持, 所以也算
+4. "`tailscale` 已启动且开启了接收子网"由路由表 52 的内容隐含: 只有开启接收路由, `tailscale` 才会为对端的子网装路由. 唯一的例外: 出口节点且未允许访问本地网络(LuCI 会强制允许, 只有命令行能设成这样)时, `tailscale` 会把本机的本地网段装成路由表 52 的普通路由, 同样被判为重叠并加规则, 效果是本机仍可访问本地网段
+5. 只处理形如 `from all to <网段> lookup main suppress_prefixlength 0` 的 pref 1295 规则, 不动其他规则
+
+**规则范围**: 规则的 `to` 是被覆盖的 L 本身(取 main 表里的前缀), 不是 R, 也不是 L 与 R 的交集, 每个 L 一条. 以本地网段 `192.168.1.0/24` 为例:
+
+1. R 与 L 相等: 规则管 L
+2. R 比 L 大(`192.168.0.0/16`): 规则只管 L, R 里 L 之外的地址(如 `192.168.5.5`)仍走 tailnet
+3. R 比 L 小(`192.168.1.128/25`): 规则仍管整个 L, 包括 R 之外的部分, 不是只管交集
+4. 多个 R 覆盖同一个 L 时仍只有一条; 一个 R 覆盖多个 L 时(如 `192.168.0.0/16` 同时覆盖本地的 `192.168.1.0/24` 和 `192.168.2.0/24`), 每个 L 各一条
+5. L 越宽规则越宽: L 不限于接口的直连网段, main 里的静态路由也算. main 里有 `10.0.0.0/8` 这类宽静态路由时, 只要有 R 落在其中(如对端通告的 `10.8.0.0/24`, 它比 main 里的路由更具体), 整个 `10.0.0.0/8` 都会优先走 main, 该 R 整段用不上
 
 **设计要点**:
 
-1. 用 netifd 配置节, 不直接调用 `ip rule`: netifd 每次启动都会清空所有 ip rule, 直接添加的规则在网络重启后会丢失
-2. 用 init 脚本, 不用 `/etc/uci-defaults`: uci-defaults 成功后会被删除, 只执行一次, `/etc/config/network` 被不含这些配置节的旧备份覆盖后无法补回
-3. 要关闭规则请设 `option disabled '1'`; 直接删配置节会在下次开机被补回
+1. 用运行时 ip rule, 不写 `/etc/config/network`: 不改动配置文件, 也不会在 LuCI 里显示成用户自己的路由规则条目
+2. 常驻对账: netifd 进程启动时会清空所有 ip rule, 而 `tailscaled` 只恢复自己 pref 范围内的规则; 接收的子网也会随对端变化. `network restart` 清空路由表 52 时(见 `docs/tailscale-network-restart-table52.md`)没有了重叠, 规则会随之被删除, 路由回来后最多 5 秒补回
+3. 按网段添加: 只影响被覆盖的本地网段, main 里其他目的地不会因此提前走 main 而绕过 mwan3(pref 2001+, 固件没有选 `mwan3`)等策略规则; tailnet 地址段内的接收路由不参与判定, main 里 CGNAT 地址段(与 tailnet 同为 `100.64.0.0/10`)的路由也不会抢走 tailnet 流量
+4. 写法: 只用 awk 和 ash 语法, 前缀先转成位串再比较, 兼容 BusyBox awk
+5. `watch` 开头关闭 fd 1000: `watch` 由 procd 另起一个 `rc.common` 进程执行, `rc.common` 加载 `procd.sh` 时会在 fd 1000 上取得 `/var/lock/procd_tailscale-subnet-guard.lock` 的锁, 而 `watch` 常驻不退出. 不关闭的话, 之后手动执行本脚本的 `start`, `stop`, `restart` 等任何动作都会卡在取锁上(设备上复现过), `watch` 的子进程 `sleep` 也会继承这把锁
+
+**验证**: 在 WSL 的私有网络命名空间里用真实 iproute2(6.1, 以及与固件同版本的 6.3.0)做过端到端测试(重叠判定, 增删, 幂等, 清空后补回, 停止清理, 与其他规则共存, IPv4 和 IPv6); awk 判定逻辑在 gawk, mawk 和按固件配置编译的 BusyBox 1.36.1 的 awk 上与独立实现逐例对照, ash 也用该 BusyBox 跑过端到端. procd 托管和 3.3 的钩子在一台装有 ImmortalWrt 23.05 的设备(NX30Pro)上用它自带的 `rc.common`, `procd.sh` 和 `ip-full` 6.3.0 做过隔离测试: procd 里起一个替身服务并带上与 3.3 相同的钩子, 规则在私有网络命名空间里增删, 覆盖 `start`, `stop`, `restart` 时钩子的调用时机, 重复 `start` 不重复起进程, 替身服务崩溃重启时不调用钩子, `watch` 被强杀后约 5 秒被 procd 拉起, 常驻期间手动执行 `start`, `stop`, `restart` 不卡住, 以及按 opkg 的 `default_postinst`, `default_prerm` 遍历 `/etc/init.d/*` 的方式模拟安装, 升级, 卸载(两种遍历顺序)都不卡住. 守卫(`watch`)也在同一台 NX30Pro 上与设备上已安装的真实 `tailscaled`(1.104.2-1, OpenWrt 构建)一起测过, 全部在私有网络命名空间里, `tailscaled` 未登录并用 `--state=mem:`, 不连 tailnet, 测试前后主命名空间的快照完全一致: 未登录的 `tailscaled` 也会立刻装上 pref 5210, 5230, 5250, 5270 的规则(IPv4 和 IPv6 各 4 条); 把重叠路由装进真实的 `tailscale0` 后, 守卫补出规则, IPv4 和 IPv6 的规则集合与预期一致, 重叠的本地网段回到代表本地网卡的 tun 设备, 无重叠的网段仍走 `tailscale0`; 规则被清, 重叠路由消失, 重叠路由回来三种情况下 `watch` 都在 7 秒内(对账间隔 5 秒)恢复; `tailscaled` 被 SIGTERM 或 SIGKILL 后路由表 52 随 `tailscale0` 消失而清空, 守卫在 7 秒内删掉自己的规则, 外来的 pref 1295 规则始终不动; `tailscaled --cleanup` 不碰 pref 1295; `tailscaled` 被 SIGKILL 后它自己的 52xx 规则会残留(`tailscale0` 已不存在时 `--cleanup` 也清不掉), 再次启动不会重复. 这几项直接运行 `watch`, 没有经过 3.3 的钩子. `/etc/init.d/network reload`(没有改动配置)在同一台设备上执行了 13 次: 测试用的路由表 52 路由, main 路由和 pref 5270 规则从未消失, pref 1295 测试规则有 1 次约 2 到 3 秒的缺失, 随后被 `watch` 补回, 原因没有查明, 其余 12 次没有任何变化, 详见 `docs/tailscale-network-restart-table52.md` 第 7 节第 2 点. 还没有验证的: 装有本补丁的固件(3.3 的钩子与真实 `tailscaled` 一起), 真实 `tailscaled` 在主网络命名空间里运行时的表现, `network restart` 与规则的交互, 设备上的核对命令见 8.1 第 5 项.
 
 ### 3.5 `/etc/config/tailscale`
 
@@ -201,7 +231,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 **设计要点**:
 
 1. 为什么需要: `tailscale` 包的 init 脚本没有"是否自启"的开关(见 3.3). `tailscale-settings` 在 LuCI 里关闭服务时会 disable 这个链接, 但链接被新镜像重新带来(例如刷机保留配置后)时, 它不会再执行. 需要有东西在 S80 之前读 `service_enabled`
-2. 为什么是独立脚本: `service_enabled` 是 LuCI 应用的选项, 读它的逻辑放在 `luci-app-tailscale-community` 里, `tailscale` 包保持原样
+2. 为什么是独立脚本: `service_enabled` 是 LuCI 应用的选项, 读它的逻辑放在 `luci-app-tailscale-community` 里, `tailscale` 包的 init 脚本不含这段逻辑(它只被追加了启停 `tailscale-subnet-guard` 的两个钩子, 见 3.3)
 3. 为什么早于 80 就有效: procd 开机时先列出所有 `/etc/rc.d/S*`, 再逐个顺序执行(同一时刻只跑一个), 执行那一刻才按路径启动. S70 先删掉链接, 轮到 S80 时路径已不存在, 启动失败并被跳过(依据 procd 源码 `rcS.c`)
 4. 重新开启: 在 LuCI 打开服务后, `tailscale-settings` 会 enable 并启动 `tailscale`, 链接随之恢复
 5. 安装方式: `3.feeds-after-script.sh` 用 `install -m 0755` 放进包的 `root/etc/init.d/`, `luci.mk` 随包安装, 镜像构建时由 `default_postinst` 生成 `S70tailscale-boot-gate` 链接
@@ -229,12 +259,11 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 ### 6.1 镜像构建时生成
 
 1. `/etc/rc.d/S80tailscale`: 开机启动链接, 指向 `/etc/init.d/tailscale`
-2. `/etc/rc.d/S15tailscale-ip-rules`: 开机启动链接, 指向 `/etc/init.d/tailscale-ip-rules`
-3. `/etc/rc.d/S99tailscale-settings`, `/etc/rc.d/K10tailscale-settings`: 开机启动和停止链接, 指向 `/etc/init.d/tailscale-settings`
-4. `/etc/rc.d/S70tailscale-boot-gate`: 开机启动链接, 指向 `/etc/init.d/tailscale-boot-gate`
-5. `/usr/lib/opkg/info/<包名>.*`: 三个包各自的 opkg 元数据(`.control`, `.list`, `.conffiles` 等). `tailscale.conffiles` 只含 `/etc/config/tailscale`, `/etc/tailscale/` 由 `/lib/upgrade/keep.d/tailscale`(见 3.6)保留, 两者用于 sysupgrade 保留配置和登录状态
+2. `/etc/rc.d/S99tailscale-settings`, `/etc/rc.d/K10tailscale-settings`: 开机启动和停止链接, 指向 `/etc/init.d/tailscale-settings`
+3. `/etc/rc.d/S70tailscale-boot-gate`: 开机启动链接, 指向 `/etc/init.d/tailscale-boot-gate`
+4. `/usr/lib/opkg/info/<包名>.*`: 三个包各自的 opkg 元数据(`.control`, `.list`, `.conffiles` 等). `tailscale.conffiles` 只含 `/etc/config/tailscale`, `/etc/tailscale/` 由 `/lib/upgrade/keep.d/tailscale`(见 3.6)保留, 两者用于 sysupgrade 保留配置和登录状态
 
-前四项由镜像构建时的 `default_postinst` 对包内 init 脚本执行 enable 生成.
+前三项由镜像构建时的 `default_postinst` 对包内 init 脚本执行 enable 生成. `tailscale-subnet-guard` 没有 START/STOP, 对它执行 enable 返回 1(返回值被忽略, 不影响构建), 所以没有开机链接, 见 3.4.
 
 ### 6.2 运行后才出现(不在固件里)
 
@@ -243,10 +272,12 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 3. 网卡 `tailscale0`
 4. `/var/run/tailscale-settings/`: `daemon`, `enabled`, `dns_mode`, `disable-requested`(tmpfs, 重启清空)
 5. `/var/run/tailscale-fwsetup.status` 和 `/var/run/tailscale-fwsetup.lock.d/`: "自动配置防火墙"的进度和锁
+6. `tailscale-subnet-guard` 的常驻进程(`/etc/init.d/tailscale-subnet-guard watch`, 由 procd 托管), 随 `tailscale` 启停
+7. 内核里 pref 1295 的 `to <本地网段>` ip rule(重启清空): 只在接收的子网与本地网段重叠时存在, 见 3.4
 
 ### 6.3 运行后会被修改的系统配置
 
-1. `/etc/config/network`: `tailscale-ip-rules` 补 6 个 ip rule 配置节; "自动配置防火墙"创建 `tailscale` 接口
+1. `/etc/config/network`: "自动配置防火墙"创建 `tailscale` 接口(`tailscale-subnet-guard` 的规则是运行时 ip rule, 不写这个文件)
 2. `/etc/config/firewall`: "自动配置防火墙"创建 `tailscale` 区域和 3 条转发
 3. `/etc/config/dhcp`: `dns_mode` 为 `openwrt_forward` 时, 给 dnsmasq 的 `server` 列表加 `/.ts.net/100.100.100.100`, 切到 `magicdns` 时删除
 
@@ -260,7 +291,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 1. 页面操作: `tailscale.js` → rpcd 的 `tailscale.uc`(权限由 ACL JSON 限定)→ `/usr/sbin/tailscale` → `tailscaled`
 2. 保存设置: `tailscale.js` 写 UCI `/etc/config/tailscale` → 触发 `tailscale-settings` 重载 → `tailscale set ...`
 3. 守护进程启动参数: `/etc/config/tailscale` → `/etc/init.d/tailscale` → `tailscaled`
-4. 网络层: `tailscale-ip-rules` 开机写 `/etc/config/network` 的 ip rule; "自动配置防火墙"写 `network`/`firewall` 后由 `tailscale-setup-firewall` 重载
+4. 网络层: `tailscale.init` 的钩子带动 `tailscale-subnet-guard` 启停, 它常驻对账, 读路由表 52 和 main 表, 增删 pref 1295 的 ip rule(不写 `/etc/config/network`); "自动配置防火墙"写 `network`/`firewall` 后由 `tailscale-setup-firewall` 重载
 5. 开机自启: `tailscale-boot-gate`(S70)读 UCI `service_enabled`, 为 0 就删掉 `/etc/rc.d/S80tailscale` → procd 依次执行 S 链接, 跳过已不存在的 S80 → `tailscale` 不启动
 
 ## 8. 需要留意与验证
@@ -273,8 +304,8 @@ opkg files tailscale
 opkg files luci-app-tailscale-community
 opkg files luci-i18n-tailscale-community-zh-cn
 
-# 2. 开机链接, 预期 5 个: S15tailscale-ip-rules, S70tailscale-boot-gate, S80tailscale, S99tailscale-settings, K10tailscale-settings
-#    (service_enabled=0 时开机会删掉 S80tailscale, 只剩 4 个)
+# 2. 开机链接, 预期 4 个: S70tailscale-boot-gate, S80tailscale, S99tailscale-settings, K10tailscale-settings
+#    (service_enabled=0 时开机会删掉 S80tailscale, 只剩 3 个; tailscale-subnet-guard 没有开机链接)
 ls -l /etc/rc.d/ | grep tailscale
 
 # 3. 执行权限, 预期 -rwxr-xr-x
@@ -282,4 +313,19 @@ ls -l /usr/libexec/tailscale-setup-firewall
 
 # 4. UPX 压缩, 输出 0 表示未压缩
 grep -c 'UPX!' /usr/sbin/tailscaled
+
+# 5. tailscale-subnet-guard(见 3.3 和 3.4; 替身服务的测试见 3.4 的验证, 装有本补丁的固件上还没有核对过)
+#    5.1 tailscale 运行时应有一个常驻的 watch 进程, 停止 tailscale 后消失(BusyBox 的 ps 经管道输出时按 78 列截断, 会截掉进程名, 所以要加 ww)
+ps ww | grep '[t]ailscale-subnet-guard'
+#    5.2 pref 1295 的规则: 接收的子网与本地网段没有重叠时为空, 有重叠时每个被覆盖的本地网段一条
+ip -4 rule show | grep '^1295:'
+ip -6 rule show | grep '^1295:'
+#    5.3 增删记录, 形如 "add rule: to 192.168.1.0/24"
+logread -e tailscale-subnet-guard
+#    5.4 tailscale 运行时手动执行动作应在几秒内返回(stop 和 restart 会多等 1 秒), 退出码为 0(卡住不动时按 Ctrl+C 中断, 说明 watch 没有释放 procd 的锁)
+/etc/init.d/tailscale-subnet-guard restart; echo $?
+#    5.5 停止 tailscale 的命令返回时(它会多等约 1 秒), pref 1295 的 to <网段> 规则应已消失
+/etc/init.d/tailscale stop
+ip -4 rule show | grep '^1295:'
+ip -6 rule show | grep '^1295:'
 ```

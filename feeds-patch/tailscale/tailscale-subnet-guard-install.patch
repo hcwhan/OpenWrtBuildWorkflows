@@ -1,0 +1,30 @@
+
+tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/Makefile)的补丁.
+应用: 2.feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: 两处.
+1. Package/tailscale 的 DEPENDS 末尾加 +ip-full: tailscale-subnet-guard 的 IPv6 对账要靠 ip-full 的 table 过滤, BusyBox 自带的 ip 不支持, IPv6 会静默不生效.
+2. Package/tailscale/install 里, tailscale.init 的安装行之后加一行, 把 files/tailscale-subnet-guard.init 安装为 /etc/init.d/tailscale-subnet-guard.
+前提: files/tailscale-subnet-guard.init 由 2.feeds-insert-script.sh 从 feeds-patch/tailscale/tailscale-subnet-guard.init 复制过来(新增文件, 不属于本补丁).
+说明: 该脚本在 tailscale 运行期间对账防子网劫持的 ip rule: 仅当接收到的子网覆盖本地网段时才为该网段添加规则, 重叠消失或 tailscale 停止时删除; 规则是运行时的 ip rule, 不写入 /etc/config/network.
+它没有 START, 不生成 /etc/rc.d 链接, 由 tailscale-subnet-guard-service-hooks.patch 在 tailscale.init 里加的钩子随 tailscale 启停. 镜像构建时 default_postinst 对它执行 enable 会返回 1, 但返回值被忽略.
+$(INSTALL_BIN) 以 0755 安装, 所以源文件不需要可执行位.
+
+--- a/Makefile
++++ b/Makefile
+@@ -46,7 +46,7 @@
+   SUBMENU:=VPN
+   TITLE:=Zero config VPN
+   URL:=https://github.com/GuNanOvO/openwrt-tailscale
+-  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +kmod-tun
++  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +kmod-tun +ip-full
+   PROVIDES:=tailscale tailscaled
+ endef
+ 
+@@ -82,6 +82,7 @@
+ 
+ 	$(LN) tailscaled $(1)/usr/sbin/tailscale
+ 	$(INSTALL_BIN) ./files/tailscale.init $(1)/etc/init.d/tailscale
++	$(INSTALL_BIN) ./files/tailscale-subnet-guard.init $(1)/etc/init.d/tailscale-subnet-guard
+ 	$(INSTALL_DATA) ./files/tailscale.conf $(1)/etc/config/tailscale
+ endef
+ 

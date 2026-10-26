@@ -1,0 +1,22 @@
+
+tailscale 包 files/tailscale.init(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/files/tailscale.init)的补丁.
+应用: 2.feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: 在文件末尾追加 service_started 和 service_stopped 钩子, 使 tailscale 启动时一并启动 /etc/init.d/tailscale-subnet-guard, 停止时一并停止它(它在停止时会先等 1 秒再删除全部规则).
+说明: OpenWrt 的 rc.common 在 USE_PROCD 脚本的 start() 里于 start_service 之后调用 service_started, 在 stop() 里于 procd_kill 之后调用 service_stopped; 上游的 tailscale.init 没有定义这两个函数.
+前提: /etc/init.d/tailscale-subnet-guard 由 tailscale-subnet-guard-install.patch 安装.
+本补丁只在文件末尾追加, 没有尾部上下文, patch 会把它锚定在文件末尾.
+
+--- a/files/tailscale.init
++++ b/files/tailscale.init
+@@ -50,3 +50,11 @@
+ stop_service() {
+   /usr/sbin/tailscaled --cleanup
+ }
++
++service_started() {
++  /etc/init.d/tailscale-subnet-guard start
++}
++
++service_stopped() {
++  /etc/init.d/tailscale-subnet-guard stop
++}

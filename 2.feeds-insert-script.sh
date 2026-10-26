@@ -43,10 +43,13 @@ apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-upx-la
 # Makefile 删除维护者专用的 5 行导出逻辑.
 apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-maintainer-export.patch"
 
-# 新增 /etc/init.d/tailscale-ip-rules: 开机时(早于 network)补齐防子网劫持的 netifd ip rule 配置节.
-# 先把 init 脚本复制进包的 files/, 再用补丁让 Makefile 把它安装到 /etc/init.d/.
-cp "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ip-rules.init"      "$TAILSCALE_PKG/files/tailscale-ip-rules.init"
-apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ip-rules-install.patch"
+# 新增 /etc/init.d/tailscale-subnet-guard: tailscale 运行期间对账防子网劫持的 ip rule(接收到的子网覆盖本地网段时才添加, 停止时删除, 不写入 /etc/config/network).
+# 先把 init 脚本复制进包的 files/, 再用补丁让 Makefile 把它安装到 /etc/init.d/, 并给 tailscale 包加 ip-full 依赖(IPv6 对账需要).
+cp "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-subnet-guard.init"      "$TAILSCALE_PKG/files/tailscale-subnet-guard.init"
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-subnet-guard-install.patch"
+
+# tailscale.init 末尾追加 service_started/service_stopped 钩子, 使 tailscale 启停时一并启停 tailscale-subnet-guard.
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-subnet-guard-service-hooks.patch"
 # tailscale 结束
 
 
