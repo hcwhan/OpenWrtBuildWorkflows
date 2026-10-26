@@ -1,0 +1,19 @@
+
+tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/Makefile)的补丁.
+应用: feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: 在 Package/tailscale/install 里, tailscale.init 的安装行之后加一行, 把 files/tailscale-ip-rules.init 安装为 /etc/init.d/tailscale-ip-rules.
+前提: files/tailscale-ip-rules.init 由 feeds-insert-script.sh 从 feeds-patch/tailscale/tailscale-ip-rules.init 复制过来(新增文件, 不属于本补丁).
+说明: 该脚本用于开机时补齐防子网劫持的 netifd ip rule 配置节, 开机顺序 S15(早于 S20network).
+镜像构建时 default_postinst 会对包内 /etc/init.d 下的脚本执行 enable, 自动生成 /etc/rc.d/S15tailscale-ip-rules 链接.
+$(INSTALL_BIN) 以 0755 安装, 所以源文件不需要可执行位.
+
+--- a/Makefile
++++ b/Makefile
+@@ -86,6 +86,7 @@
+ 
+ 	$(LN) tailscaled $(1)/usr/sbin/tailscale
+ 	$(INSTALL_BIN) ./files/tailscale.init $(1)/etc/init.d/tailscale
++	$(INSTALL_BIN) ./files/tailscale-ip-rules.init $(1)/etc/init.d/tailscale-ip-rules
+ 	$(INSTALL_DATA) ./files/tailscale.conf $(1)/etc/config/tailscale
+ endef
+ 

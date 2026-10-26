@@ -1,0 +1,18 @@
+
+tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/Makefile)的补丁.
+应用: feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: GO_PKG_TAGS 末尾追加 ,ts_omit_flashappliance(上游 14 个构建标签变为 15 个).
+原因: 仅用 ts_omit_clientupdate 时, 仍会通过 flash-appliance 的 CLI 命令链接 tailscale.com/clientupdate, 使 CanAutoUpdate() 保持为 true,
+导致 tailscaled 启动时无法清除已保存的 AutoUpdate.Apply=true. 把这些命令也省略掉, 该包就会被剔除.
+
+--- a/Makefile
++++ b/Makefile
+@@ -30,7 +30,7 @@
+ GO_PKG_LDFLAGS_X:=tailscale.com/version.shortStamp=$(PKG_VERSION)
+ # Note: keep ts_omit_relayserver out of this list - it removes the Relay server
+ # feature (Peer Relay). It was removed in 1.102.4-r2 after issue #161.
+-GO_PKG_TAGS:=ts_include_cli,ts_omit_aws,ts_omit_bird,ts_omit_completion,ts_omit_kube,ts_omit_systray,ts_omit_taildrop,ts_omit_tap,ts_omit_tpm,ts_omit_capture,ts_omit_syspolicy,ts_omit_debugeventbus,ts_omit_webclient,ts_omit_clientupdate
++GO_PKG_TAGS:=ts_include_cli,ts_omit_aws,ts_omit_bird,ts_omit_completion,ts_omit_kube,ts_omit_systray,ts_omit_taildrop,ts_omit_tap,ts_omit_tpm,ts_omit_capture,ts_omit_syspolicy,ts_omit_debugeventbus,ts_omit_webclient,ts_omit_clientupdate,ts_omit_flashappliance
+ 
+ ifneq ($(filter mips64% riscv64% loongarch64%,$(ARCH)),)
+   DISABLE_UPX:=1

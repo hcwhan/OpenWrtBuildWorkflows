@@ -1,0 +1,16 @@
+
+tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/Makefile)的补丁.
+应用: feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: 在 PKG_BUILD_DIR 之后加一行 PKG_BUILD_DEPENDS:=golang/host.
+原因: 先构建 golang/host, 使 tailscale 使用 feeds 里的 Go, 而不是 CI 主机上的 Go.
+
+--- a/Makefile
++++ b/Makefile
+@@ -22,6 +22,7 @@
+ PKG_CPE_ID:=cpe:/a:tailscale:tailscale
+ 
+ PKG_BUILD_DIR:=$(BUILD_DIR)/tailscale-$(PKG_VERSION)
++PKG_BUILD_DEPENDS:=golang/host
+ PKG_BUILD_PARALLEL:=1
+ PKG_BUILD_FLAGS:=no-mips16
+ 

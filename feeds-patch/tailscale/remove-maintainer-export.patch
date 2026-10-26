@@ -1,0 +1,21 @@
+
+tailscale 包 Makefile(上游 GuNanOvO/openwrt-tailscale 的 package/tailscale/Makefile)的补丁.
+应用: feeds-insert-script.sh 的 # tailscale 段, patch -p1 -F0 在 tailscale 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: 删除 Package/tailscale/install 里仅面向维护者的 5 行(3 行注释, 加上 mkdir -p 和 $(CP) 两行),
+即把 tailscaled 复制一份到 $(TOPDIR)/bin/packages/<arch>/base 的逻辑.
+原因: 这是上游为给本项目仓库保留一份二进制副本而写的, 固件构建用不到.
+
+--- a/Makefile
++++ b/Makefile
+@@ -78,11 +78,6 @@
+ else
+ 	echo "==> UPX disabled on ARCH $(ARCH)"
+ endif
+-	# [Maintainer Note] Save a copy of the binary for the repository.
+-    # Feel free to remove the next two lines for local builds.
+-	# 可选：以下两行仅用于为本项目仓库保留一份二进制副本，自行使用时可删除
+-	mkdir -p $(TOPDIR)/bin/packages/$(ARCH_PACKAGES)/base
+-	$(CP) $(GO_PKG_BUILD_BIN_DIR)/tailscaled $(TOPDIR)/bin/packages/$(ARCH_PACKAGES)/base/tailscaled
+ 
+ 	$(LN) tailscaled $(1)/usr/sbin/tailscale
+ 	$(INSTALL_BIN) ./files/tailscale.init $(1)/etc/init.d/tailscale

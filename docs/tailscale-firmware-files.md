@@ -57,9 +57,9 @@
 
 **作用**: 守护进程本体, 已去符号(`-s -w`), 并内置命令行(构建标签 `ts_include_cli`). 负责创建 `tailscale0` 网卡, 连接控制服务器, 与对端建立 WireGuard 隧道(含 NAT 穿透和 DERP 中继), 写 nftables 规则和路由, 通过 unix socket 提供本地 API.
 
-**补丁**: 构建标签在上游 14 个的基础上追加 `ts_omit_flashappliance`, 共 15 个(`feeds-insert-script.sh` 的 `# tailscale` 段). 原因: 仅用 `ts_omit_clientupdate` 时, flash-appliance 的命令行子命令仍会链接 `tailscale.com/clientupdate`, 使 `CanAutoUpdate()` 保持为 true, tailscaled 启动时无法清除已保存的 `AutoUpdate.Apply=true`.
+**补丁**: 构建标签在上游 14 个的基础上追加 `ts_omit_flashappliance`, 共 15 个(`feeds-patch/tailscale/omit-flashappliance.patch`, 由 `feeds-insert-script.sh` 的 `# tailscale` 段应用). 原因: 仅用 `ts_omit_clientupdate` 时, flash-appliance 的命令行子命令仍会链接 `tailscale.com/clientupdate`, 使 `CanAutoUpdate()` 保持为 true, tailscaled 启动时无法清除已保存的 `AutoUpdate.Apply=true`.
 
-**补丁(版本串)**: 版本串由 `1.104.2-1 (OpenWrt-UPX)` 改为 `1.104.2-1 (OpenWrt)`, 包描述 `TITLE` 里的 `(UPX Compressed)` 一并去掉(`feeds-insert-script.sh` 的 `# tailscale` 段). 原因: 这两处是上游写死的字样, 而本项目构建并未压缩.
+**补丁(版本串)**: 版本串由 `1.104.2-1 (OpenWrt-UPX)` 改为 `1.104.2-1 (OpenWrt)`, 包描述 `TITLE` 里的 `(UPX Compressed)` 一并去掉(`feeds-patch/tailscale/remove-upx-labels.patch`, 由 `feeds-insert-script.sh` 的 `# tailscale` 段应用). 原因: 这两处是上游写死的字样, 而本项目构建并未压缩.
 
 **压缩**: 上游 Makefile 只在 `$(TOPDIR)/upx/upx` 存在时才用 UPX 压缩, ImmortalWrt 23.05 和本项目 CI 都没有提供, 所以未压缩. 安装固件的设备上已验证, 见 8.1.
 

@@ -4,6 +4,9 @@ set -euo pipefail
 # CI 中 openwrt/ 是指向 /workdir/openwrt 的符号链接, 所以 ../ 无法到达 workflow 仓库.
 WORKFLOW_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")" && pwd)}"
 
+# 引入共用函数 apply_patch.
+source "$WORKFLOW_ROOT/feeds-common.sh"
+
 
 # golang 开始
 # 用项目内 feeds-master 的 golang 替换 feed 自带的 golang(为了使用更高版本的 Go 版本).
@@ -28,43 +31,19 @@ test -d "$TAILSCALE_SRC/package/tailscale" || {
 cp -a "$TAILSCALE_SRC/package/tailscale"                             "$TAILSCALE_PKG"
 rm -rf "$TAILSCALE_SRC"
 
-TAILSCALE_MAKEFILE="$TAILSCALE_PKG/Makefile"
 TAILSCALE_INIT="$TAILSCALE_PKG/files/tailscale.init"
 
-# 先构建 golang/host, 使 tailscale 使用 feeds 里的 Go, 而不是 CI 主机上的 Go.
-test "$(grep -c '^PKG_BUILD_DIR:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -qF 'PKG_BUILD_DIR:=$(BUILD_DIR)/tailscale-$(PKG_VERSION)' "$TAILSCALE_MAKEFILE" || {
-  echo "ERROR: expected exactly one 'PKG_BUILD_DIR:=\$(BUILD_DIR)/tailscale-\$(PKG_VERSION)' in $TAILSCALE_MAKEFILE" >&2
-  exit 1
-}
-sed -i '/^PKG_BUILD_DIR:=/a PKG_BUILD_DEPENDS:=golang/host'            "$TAILSCALE_MAKEFILE"
+# Makefile 加 PKG_BUILD_DEPENDS:=golang/host.
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/build-depends-golang-host.patch"
 
-# 仅用 ts_omit_clientupdate 时, 仍会通过 flash-appliance 的 CLI 命令链接 tailscale.com/clientupdate, 使 CanAutoUpdate() 保持为 true,
-# 导致 tailscaled 启动时无法清除已保存的 AutoUpdate.Apply=true. 把这些命令也省略掉, 该包就会被剔除.
-test "$(grep -c '^GO_PKG_TAGS:=' "$TAILSCALE_MAKEFILE")" = 1 && grep -q '^GO_PKG_TAGS:=.*ts_omit_clientupdate$' "$TAILSCALE_MAKEFILE" || {
-  echo "ERROR: expected exactly one 'GO_PKG_TAGS:=' line ending with 'ts_omit_clientupdate' in $TAILSCALE_MAKEFILE" >&2
-  exit 1
-}
-sed -i '/^GO_PKG_TAGS:=/s/$/,ts_omit_flashappliance/'                  "$TAILSCALE_MAKEFILE"
+# Makefile 的 GO_PKG_TAGS 追加 ts_omit_flashappliance.
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/omit-flashappliance.patch"
 
-# 版本串里的 "(OpenWrt-UPX)" 是 Makefile 里写死的标签, 与是否实际做了 UPX 压缩无关, 改成与 ImmortalWrt 自带包一致的 "(OpenWrt)".
-test "$(grep -cF '(OpenWrt-UPX)' "$TAILSCALE_MAKEFILE")" = 1 || {
-  echo "ERROR: expected exactly one '(OpenWrt-UPX)' in $TAILSCALE_MAKEFILE" >&2
-  exit 1
-}
-sed -i 's/(OpenWrt-UPX)/(OpenWrt)/'                                    "$TAILSCALE_MAKEFILE"
+# Makefile 去掉两处写死的 UPX 字样: 版本串 "(OpenWrt-UPX)" 改成 "(OpenWrt)", 包描述 TITLE 去掉 "(UPX Compressed)".
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-upx-labels.patch"
 
-# 包描述里的 "(UPX Compressed)" 同样与是否实际做了 UPX 压缩无关, 一并去掉.
-test "$(grep -c 'TITLE:=Zero config VPN (UPX Compressed)$' "$TAILSCALE_MAKEFILE")" = 1 || {
-  echo "ERROR: expected exactly one 'TITLE:=Zero config VPN (UPX Compressed)' in $TAILSCALE_MAKEFILE" >&2
-  exit 1
-}
-sed -i '/TITLE:=Zero config VPN (UPX Compressed)$/s/ (UPX Compressed)//' "$TAILSCALE_MAKEFILE"
-
-# 删除仅面向维护者的 tailscaled 导出到 bin/packages 的逻辑(固件构建用不到).
-sed -i -e '/\[Maintainer Note\]/d' \
-       -e '/Feel free to remove the next two lines/d' \
-       -e '/可选：以下两行/d' \
-       -e '/\$(TOPDIR)\/bin\/packages/d'                               "$TAILSCALE_MAKEFILE"
+# Makefile 删除维护者专用的 5 行导出逻辑.
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-maintainer-export.patch"
 
 # 开机时遵循 tailscale.settings.service_enabled: 为 0 时跳过启动, 并删除 /etc/rc.d/S80tailscale 链接.
 # 此处通过 S80tailscale 链接调用, 直接用 rc.common 的 disable() 会作用到错误的名称上, 所以改用 init 脚本的路径.
@@ -82,17 +61,10 @@ sed -i '/^  config_load tailscale$/r /dev/stdin'                          "$TAIL
   fi
 EOF
 
-# 开机时补齐防子网劫持的 netifd ip rule 配置节: 脚本随 tailscale 包安装, 开机顺序 S15(早于 S20network).
-# 镜像构建时 default_postinst 会对包内 /etc/init.d 下的脚本执行 enable, 自动生成 /etc/rc.d/S15tailscale-ip-rules 链接.
-# $(INSTALL_BIN) 以 0755 安装, 所以源文件不需要可执行位.
-test "$(grep -cxF $'\t$(INSTALL_BIN) ./files/tailscale.init $(1)/etc/init.d/tailscale' "$TAILSCALE_MAKEFILE")" = 1 || {
-  echo "ERROR: expected exactly one '\$(INSTALL_BIN) ./files/tailscale.init \$(1)/etc/init.d/tailscale' line in $TAILSCALE_MAKEFILE" >&2
-  exit 1
-}
+# 新增 /etc/init.d/tailscale-ip-rules: 开机时(早于 network)补齐防子网劫持的 netifd ip rule 配置节.
+# 先把 init 脚本复制进包的 files/, 再用补丁让 Makefile 把它安装到 /etc/init.d/.
 cp "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ip-rules.init"      "$TAILSCALE_PKG/files/tailscale-ip-rules.init"
-sed -i '/^\t\$(INSTALL_BIN) \.\/files\/tailscale\.init /r /dev/stdin'  "$TAILSCALE_MAKEFILE" <<'EOF'
-	$(INSTALL_BIN) ./files/tailscale-ip-rules.init $(1)/etc/init.d/tailscale-ip-rules
-EOF
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ip-rules-install.patch"
 # tailscale 结束
 
 
