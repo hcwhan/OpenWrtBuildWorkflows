@@ -2,11 +2,14 @@
 miniupnpd(feeds/packages 的 net/miniupnpd)的补丁.
 应用: feeds-insert-script.sh 的 # miniupnpd 段把本文件复制到 feeds/packages/net/miniupnpd/patches/, 由 OpenWrt 构建 miniupnpd 时应用.
 作用: upnpsoap.c 的 GetExternalIPAddress 里 "private/reserved address ... is not suitable for external IP" 这条日志由 LOG_NOTICE 降为 LOG_DEBUG.
+上下文: 前后各 2 行, 取自应用完包内 011 到 901 号补丁之后的 upnpsoap.c(本补丁排在它们之后应用), 不依赖 patch 的模糊匹配.
 
 --- a/upnpsoap.c
 +++ b/upnpsoap.c
-@@ -348,3 +348,3 @@ GetExternalIPAddress(struct upnphttp * h
+@@ -348,5 +348,5 @@ GetExternalIPAddress(struct upnphttp * h
  			ext_ip_addr[0] = '\0';
  		} else if (addr_is_reserved(&addr)) {
 -			syslog(LOG_NOTICE, "private/reserved address %s is not suitable for external IP", ext_ip_addr);
 +			syslog(LOG_DEBUG, "private/reserved address %s is not suitable for external IP", ext_ip_addr);
+ 			if (!GETFLAG(FORCEFORWARDINGMASK)) {
+ 				ext_ip_addr[0] = '\0';
