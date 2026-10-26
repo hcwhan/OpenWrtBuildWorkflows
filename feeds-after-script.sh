@@ -27,25 +27,6 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
   exit 1
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
-
-# tailscale 是用 ts_omit_clientupdate 构建的, 因此已保存的 AutoUpdate.Apply=true 会导致每次 'tailscale set' 都失败.
-# 在真正的 'tailscale set' 之前, 先用 'tailscale set --auto-update=false' 重置它(tailscaled 只会拒绝结果仍为 Apply=true 的修改).
-TAILSCALE_SETTINGS_INIT="$FEEDS_HCWHAN/luci-app-tailscale-community/root/etc/init.d/tailscale-settings"
-grep -qF -- '--auto-update' "$TAILSCALE_SETTINGS_INIT" && {
-  echo "ERROR: '--auto-update' already present in $TAILSCALE_SETTINGS_INIT; upstream changed, review and drop this patch" >&2
-  exit 1
-}
-test "$(grep -cxF $'\tlogger -t "$NAME" "Applying settings"' "$TAILSCALE_SETTINGS_INIT")" = 1 || {
-  echo "ERROR: expected exactly one 'Applying settings' logger line in $TAILSCALE_SETTINGS_INIT" >&2
-  exit 1
-}
-sed -i '/^\tlogger -t "\$NAME" "Applying settings"$/r /dev/stdin' "$TAILSCALE_SETTINGS_INIT" <<'EOF'
-  [ "$("$ts_bin" get auto-update 2>/dev/null)" = true ] && {
-    logger -t "$NAME" "AutoUpdate.Apply=true is unsupported in this build, resetting it"
-    "$ts_bin" set --auto-update=false \
-      || logger -t "$NAME" "Failed to reset auto-update (exit code: $?)"
-  }
-EOF
 # luci-app-tailscale-community 结束
 
 

@@ -40,7 +40,7 @@
 | 8 | `/usr/share/luci/menu.d/luci-app-tailscale-community.json` | 0644 | 上游+补丁 | 菜单注册 |
 | 9 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
 | 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
-| 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游+补丁 | 把 LuCI 设置应用到 tailscale |
+| 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游 | 把 LuCI 设置应用到 tailscale |
 | 12 | `/usr/libexec/tailscale-setup-firewall` | 0755 | 上游 | "自动配置防火墙"的后台执行者 |
 | 13 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | - | 上游 | 简体中文翻译 |
 | 14 | `/etc/uci-defaults/luci-i18n-tailscale-community-zh-cn` | - | 上游 | 首次开机登记语言名 |
@@ -176,7 +176,7 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 
 ### 4.5 `/etc/init.d/tailscale-settings`
 
-> 标记: 上游+补丁 | 权限: 0755 | START=99, STOP=10
+> 标记: 上游 | 权限: 0755 | START=99, STOP=10
 
 **作用**: 设置应用器. 开机以及 UCI `tailscale` 变化时(`procd_add_reload_trigger`)运行:
 
@@ -184,8 +184,6 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 2. 按 `dns_mode` 在 dnsmasq 增删转发 `/.ts.net/100.100.100.100`(`openwrt_forward` 添加, `magicdns` 删除, `disabled` 不动)
 3. 按 `service_enabled` 对 `/etc/init.d/tailscale` 执行 enable/start 或 stop/disable
 4. `port`, `state_file`, `fw_mode`, 日志开关变化时重启守护进程
-
-**补丁**: 在 `Applying settings` 日志行之后插入: 若 `tailscale get auto-update` 为 true, 先执行 `tailscale set --auto-update=false`(`feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段). 原因: 固件的 tailscaled 以 `ts_omit_clientupdate` 构建, 已保存的自动更新为 true 会使每次 `tailscale set` 失败.
 
 ### 4.6 `/usr/libexec/tailscale-setup-firewall`
 
