@@ -1,3 +1,8 @@
+
+miniupnpd(feeds/packages 的 net/miniupnpd)的补丁.
+应用: feeds-insert-script.sh 的 # miniupnpd 段把本文件复制到 feeds/packages/net/miniupnpd/patches/, 由 OpenWrt 构建 miniupnpd 时应用.
+作用: upnpsoap.c 的 GetExternalIPAddress 里 "private/reserved address ... is not suitable for external IP" 这条日志由 LOG_NOTICE 降为 LOG_DEBUG.
+
 --- a/upnpsoap.c
 +++ b/upnpsoap.c
 @@ -348,3 +348,3 @@ GetExternalIPAddress(struct upnphttp * h

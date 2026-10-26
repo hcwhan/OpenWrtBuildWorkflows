@@ -112,13 +112,14 @@ rm -rf ./feeds/packages/net/v2ray-geodata
 
 
 # miniupnpd 开始
-# 给 miniupnpd 增加补丁: upnpsoap.c 里 "private/reserved address ... is not suitable for external IP" 这条日志由 LOG_NOTICE 降为 LOG_DEBUG.
+# miniupnpd 的 upnpsoap.c: "private/reserved address ... is not suitable for external IP" 日志由 LOG_NOTICE 降为 LOG_DEBUG.
+# 目标文件在构建时才从源码包解压出来, 所以不能用 apply_patch, 复制进包的 patches/ 由 OpenWrt 构建时应用.
 cp "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/packages/net/miniupnpd/patches/
 # miniupnpd 结束
 
 
 
-# 修改字符串 开始
+# 修改文案: 菜单标题, 翻译文本 开始
 CPUFREQ_PO='./feeds/luci/applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po'
 SQM_PO='./feeds/luci/applications/luci-app-sqm/po/zh_Hans/sqm.po'
 SQM_JSON='./feeds/luci/applications/luci-app-sqm/root/usr/share/luci/menu.d/luci-app-sqm.json'
@@ -149,7 +150,7 @@ sed -i 's/msgstr "SQM 队列管理"/msgstr "队列管理(SQM)"/'                
 # luci-app-sqm 菜单: 标题 "SQM QoS" 改为 "SQM"(与上面 po 的 msgid 对应), 并删除 order, 使 LuCI 默认取 1000, 按名称对同级菜单排序.
 sed -i 's/"title": "SQM QoS",/"title": "SQM",/'                      "$SQM_JSON"
 sed -i 's/\t\t"order": 59,//'                                        "$SQM_JSON"
-# 修改字符串 结束
+# 修改文案: 菜单标题, 翻译文本 结束
 
 
 
