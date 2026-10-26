@@ -111,7 +111,6 @@ CONFIG_DEFAULT_luci=y
 CONFIG_DEFAULT_luci-app-autoreboot=y
 CONFIG_DEFAULT_luci-app-cpufreq=y
 CONFIG_DEFAULT_luci-app-filebrowser=y
-CONFIG_DEFAULT_luci-app-filetransfer=y
 CONFIG_DEFAULT_luci-app-mosdns=y
 CONFIG_DEFAULT_luci-app-openclash=y
 CONFIG_DEFAULT_luci-app-opkg=y
