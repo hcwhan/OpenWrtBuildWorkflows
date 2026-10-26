@@ -186,10 +186,9 @@ LuCI 页面保存时还会写入下列选项(静态推断, 取自 `tailscale.js`
 3. 按 `service_enabled` 对 `/etc/init.d/tailscale` 执行 enable/start 或 stop/disable
 4. `port`, `state_file`, `fw_mode`, 日志开关变化时重启守护进程
 
-**补丁**: 两处, 各写成一个补丁放在 `feeds-patch/luci-app-tailscale-community/`, 由 `feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段用 `patch -p1 -F0` 应用, 上下文与上游不匹配时构建失败:
+**补丁**: 一处, 写成一个补丁放在 `feeds-patch/luci-app-tailscale-community/`, 由 `feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段用 `patch -p1 -F0` 应用, 上下文与上游不匹配时构建失败:
 
 1. `skip-apply-when-not-running.patch`(`apply_settings`): 在 `config_load tailscale` 之后加判断, `tailscaled` 没在运行时跳过 `tailscale set`, 日志写 `tailscale is not running, skip applying settings`. 原因: `tailscale set` 需要守护进程在运行, `service_enabled` 为 0 时开机不会启动 tailscaled, 无条件的 `apply_settings` 必然失败, 日志里会出现 `Failed to apply settings (exit code: 1)`. 按守护进程是否在运行判断, 不依赖 `service_enabled`, 守护进程因其他原因没起来时也一并跳过
-2. `reload-config-load.patch`(`reload_service`): 在 `handle_service_state` 之前补 `config_load tailscale`. 原因: 上游 reload 路径先读 `service_enabled` 和守护进程选项(`port`, `state_file`, `fw_mode`, 日志开关), 之后才第一次 `config_load`, 读到的全是默认值: LuCI 关闭服务时守护进程不会停, 已关闭的服务会被任意一次 reload 重新启动, 端口等选项的变化检测不到, 选项本来就是非默认值时, 开机后的第一次 reload(例如第一次在 LuCI 保存配置)会无故重启一次守护进程, 之后记录的指纹被默认值覆盖, 不再重启, 但此后选项真的改了也检测不到
 
 ### 4.6 `/usr/libexec/tailscale-setup-firewall`
 
