@@ -44,7 +44,7 @@
 | 5270 | `lookup 52` | tailscaled | 其余包再查 table 52 |
 | 32766 | `lookup main` | 系统 | 普通路由, 含默认路由 |
 
-项目的规则由 `tailscale-subnet-guard` 在 `tailscale` 运行期间按需添加, 是运行时的 ip rule, 不在配置文件里(见 `tailscale-firmware-files.md` 3.4). 它每 5 秒按 table 52 和 main 的现状对账一次: table 52 被清空时(本问题)没有重叠, 规则在下一轮被删除, 路由恢复后重新添加(推演). tailscaled 的 4 条规则只在它运行时存在: tailscale 未运行的设备上没有 5210 到 5270(读取).
+项目的规则由 `tailscale-subnet-guard` 在 `tailscale` 运行期间按需添加, 是运行时的 ip rule, 不在配置文件里(见 `tailscale-firmware-files.md` 3.4). 它用 `ip monitor route rule` 监听路由和规则的变化, 变化后(合并 1 秒内的连续变化)按 table 52 和 main 的现状对账一次, 另每 60 秒兜底对账一次: table 52 被清空时(本问题)没有重叠, 规则约 1 到 2 秒内被删除, 路由恢复后重新添加(推演). tailscaled 的 4 条规则只在它运行时存在: tailscale 未运行的设备上没有 5210 到 5270(读取).
 
 ## 3. 现象
 
@@ -166,7 +166,7 @@ network restart
 
 1. 从另一个 tailnet 节点访问本机, 或通过本机访问子网的端到端表现(6.3 是推演)
 2. `network reload` 会不会清空 table 52. LuCI 的"保存并应用"(`network` 配置变化触发 `reload_service`, 见 `/etc/init.d/network` 第 28 到 35 行和第 128 行)和"自动配置防火墙"的后台脚本(`tailscale-setup-firewall`)都会执行它. NX30Pro 的第一次测试里 `network reload` 是在 table 52 已空之后执行的, 判断不了. 2026-10-26 在 NX30Pro 上补测了没有改动配置时的 reload, 但用的是 `lo` 上的运行时测试路由, 不是 netifd 管理的 `tailscale0`, 所以这一点仍未回答:
-   1. 方法: tailscale 未运行. main 表和 table 52 各加 `203.0.113.0/24 dev lo`(TEST-NET-3, 不影响真实网络), 加规则 `pref 5270 lookup 52`, 并由 `tailscale-subnet-guard` 的 `watch` 维护 `pref 1295 to 203.0.113.0/24` 规则. 执行完整的 `/etc/init.d/network reload`(不是 restart), 每秒采样, 并用 `ip monitor` 记录规则, 路由, 网卡, 地址的变化. 全程有独立的看门狗, 结束后恢复, 测试前后主命名空间快照一致, `/etc/config` 文件的哈希不变
+   1. 方法: tailscale 未运行. main 表和 table 52 各加 `203.0.113.0/24 dev lo`(TEST-NET-3, 不影响真实网络), 加规则 `pref 5270 lookup 52`, 并由 `tailscale-subnet-guard` 的 `watch`(当时是每 5 秒轮询的版本)维护 `pref 1295 to 203.0.113.0/24` 规则. 执行完整的 `/etc/init.d/network reload`(不是 restart), 每秒采样, 并用 `ip monitor` 记录规则, 路由, 网卡, 地址的变化. 全程有独立的看门狗, 结束后恢复, 测试前后主命名空间快照一致, `/etc/config` 文件的哈希不变
    2. 结果(实测): 共 13 次完整 reload, 返回 0, 没有输出, 用时 0.08 到 0.27 s. 网络现状前后一致(地址, 路由, 规则, 网卡标志, 桥成员, netifd 接口状态, netifd, dnsmasq, hostapd, zerotier-one 等进程号, 无线接口), 接口运行秒数没有倒退, 即没有接口被重启. 另把 reload 拆成 `ubus call network reload` 和 `wifi reload_legacy` 各执行 1 次, 7 条不同形状的测试规则同样不变
    3. 带 `ip monitor` 的 12 次 reload 里, reload 窗口内没有任何规则或路由事件. 其中 10 次落在守卫 5 秒周期的 0.3, 1.0, 1.6, 2.1, 2.5, 2.7, 3.0, 3.9, 4.3, 4.8 s 处(从守卫上一轮对账结束算起), 还同时监视了网卡和地址, 同样 0 个事件. table 52 测试路由, main 测试路由和 pref 5270 规则在所有采样里都在. 即没有改动配置时, reload 对这些对象是空操作(只限本测试的条件)
    4. 未解之处: 第 1 次 reload(没有 `ip monitor`)里, pref 1295 的测试规则在 reload 开始约 1 s 后的采样里已经缺失, 连续 2 次采样(间隔约 1 s)缺失, 之后被 `watch` 补回, 缺失约 2 到 3 s. 同一时间 main 表和 table 52 的测试路由, pref 5270 规则都在. 守卫删除规则成功后一定会记 `del rule` 日志, 日志里没有, 所以不是守卫删的. 系统日志在这段时间除 ssh 登录和守卫记录外没有别的行. 之后的 12 次没有复现, 原因没有查明

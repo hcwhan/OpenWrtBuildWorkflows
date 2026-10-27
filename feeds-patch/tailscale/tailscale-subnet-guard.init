@@ -2,7 +2,8 @@
 
 # tailscale 会把接受自其他节点的子网路由装入路由表 52(pref 5270, 在 OpenWrt 上检测到 mwan3 时为 1370), 该表会先于 main 表被查询.
 # 如果其他节点通告的子网与本地网段重叠(例如 LAN), 就会劫持这个网段的流量.
-# 本脚本在 tailscale 运行期间每 INTERVAL 秒对账一次, 只对被接收路由覆盖的本地网段添加规则:
+# 本脚本在 tailscale 运行期间, 路由或规则每变化一次就对账一次(1 秒内的连续变化合并为一次), 另每 FALLBACK 秒兜底对账一次,
+# 只对被接收路由覆盖的本地网段添加规则:
 #   pref 1295 to <本地网段> lookup main suppress_prefixlength 0
 # 即先查 main 表并忽略其默认路由, 使该网段的具体本地路由优先于路由表 52.
 # 没有重叠时不添加任何规则; 重叠消失, 或 tailscale 停止时, 对应的规则会被删除.
@@ -32,9 +33,17 @@
 # 没有行为差异.
 #
 # 规则是运行时的 ip rule, 不写入 /etc/config/network, 所以 LuCI 看不到, 也不会改动 config 文件.
-# netifd 每次启动都会清空所有 ip rule, 而 tailscaled 只会恢复其自身 pref 范围内的规则, 所以每轮都拿期望集合和
+# netifd 每次启动都会清空所有 ip rule, 而 tailscaled 只会恢复其自身 pref 范围内的规则, 所以每次对账都拿期望集合和
 # ip rule show 里 pref 1295 的现状对账: 缺则补, 多则删. 只处理形如 from all to <网段> lookup main suppress_prefixlength 0
 # 的规则, 不会动其他规则.
+#
+# 触发对账的变化由 ip monitor route rule 报告: 任何表里的路由增删(含路由表 52 和 main), 以及 ip rule 的增删, 都会输出一行.
+# watch 经 FIFO 读取这些行(不用管道: procd 只给 watch 主进程发 SIGTERM, 管道两端的子进程会变成孤儿继续跑),
+# 退出时由 trap EXIT 杀掉 ip monitor 并删除 FIFO. watch 被 SIGKILL 时(kill -9, OOM, procd 的终止超时)trap 来不及运行,
+# ip monitor 会成为孤儿: procd 启动的进程忽略 SIGPIPE, 孤儿往已无读端的 FIFO 写入只得到 EPIPE, 不会退出.
+# 孤儿的 stdout 仍指向这个守卫的 FIFO(路径相同, 文件可能已被删), 由下一次 watch 启动和 service_stopped 里的
+# sweep_monitors 杀掉; 新的 watch 会重建 FIFO, 不受残留影响.
+# ip monitor 的事件在 netlink 缓冲溢出时可能丢失, 所以没有事件时也每 FALLBACK 秒对账一次.
 #
 # 没有 START, 不随开机启动: 由 tailscale-subnet-guard-service-hooks.patch 在 tailscale.init 里加的
 # service_started/service_stopped 钩子随 tailscale 的启停而启停. 也可以手动执行 start, stop, restart.
@@ -46,7 +55,7 @@ USE_PROCD=1
 EXTRA_COMMANDS="watch"
 
 PREF=1295
-INTERVAL=5
+FALLBACK=60
 
 # 对账用的 awk 程序. 标准输入分三段, 每段以单独成行的 R, L, E 开头:
 #   R: ip route show table 52    (接收路由)
@@ -243,15 +252,54 @@ reconcile() {  # reconcile <4|6> [clean]
   done
 }
 
+# 杀掉 stdout 指向本守卫 FIFO 的 ip monitor(只有 watch 起的 ip monitor 是这样). 先按 /proc/<pid>/comm 筛出 ip 进程,
+# 不对每个进程都 fork tr. 进程可能在遍历途中退出: 2>/dev/null 必须写在 < 之前(重定向从左到右生效),
+# 否则 < 打开失败的报错会落到 stderr(procd 会把它记进 syslog).
+sweep_monitors() {
+  local p c
+  for p in /proc/[0-9]*; do
+    { read -r c < "$p/comm"; } 2>/dev/null || continue
+    [ "$c" = ip ] || continue
+    case "$(tr '\0' ' ' 2>/dev/null < "$p/cmdline")" in
+      "ip monitor route rule ")
+        case "$(readlink "$p/fd/1" 2>/dev/null)" in
+          */"${initscript##*/}".fifo*) kill "${p#/proc/}" 2>/dev/null ;;
+        esac
+        ;;
+    esac
+  done
+}
+
 watch() {
   # rc.common 加载 procd.sh 时会在 fd 1000 上取得 /var/lock/procd_<名字>.lock 的 flock, 常驻期间不放的话,
-  # 之后执行本脚本的任何动作(start, stop, restart, status 等)都会卡在 procd_lock 上. 子进程(sleep)也就不再继承这把锁.
+  # 之后执行本脚本的任何动作(start, stop, restart, status 等)都会卡在 procd_lock 上. 子进程(ip monitor)也就不再继承这把锁.
   exec 1000>&-
+
+  # 上一个 watch 若是被 SIGKILL 的, 它的 ip monitor 还在
+  sweep_monitors
+
+  # FIFO 以读写方式打开(3<>), 没有写端时也不会读到 EOF; ip monitor 用 3<&- 不继承这个读写端.
+  # TERM 时 exit 0: 正在等事件(read)就立即退出, 正在对账则等这一轮跑完再退出.
+  FIFO=/var/run/${initscript##*/}.fifo
+  MON=
+  trap 'exit 0' TERM INT
+  trap '[ -z "$MON" ] || kill "$MON" 2>/dev/null; rm -f "$FIFO"' EXIT
+  rm -f "$FIFO"
+  mkfifo "$FIFO" || exit 1
+  exec 3<>"$FIFO"
+  ip monitor route rule 3<&- >"$FIFO" 2>/dev/null &
+  MON=$!
+  SOH=$(printf '\001')
 
   while :; do
     reconcile 4
     reconcile 6
-    sleep "$INTERVAL"
+    # 对账之后再检查: 对账里的前台命令已把退出的 ip monitor 回收, kill -0 才不会把未回收的僵尸当成存活.
+    # ip monitor 退出后不会再有事件, 只能退出, 由 procd 重新拉起 watch.
+    kill -0 "$MON" 2>/dev/null || { logger -t tailscale-subnet-guard "ip monitor 已退出, watch 退出等待 procd 重启"; exit 1; }
+    # 等变化, 最长 FALLBACK 秒. 有变化时再读 1 秒, 这段时间陆续到达的事件一并读掉, 合并成下一次对账.
+    # ash 的 read -t 只支持整数秒; -d 用一个不会出现的分隔符, 使这次 read 固定读满 1 秒才返回, 持续有事件也不会一直读下去.
+    read -t "$FALLBACK" -r _ <&3 && read -t 1 -r -d "$SOH" _ <&3
   done
 }
 
@@ -264,10 +312,13 @@ start_service() {
 }
 
 service_stopped() {
-  # procd 只给 watch 主进程发 SIGTERM, 对账管道里的子进程会变成孤儿继续跑完, 其中的 ip rule add 可能晚于下面的清理, 留下 1 条规则.
-  # 先等 1 秒让它们落地. 一轮对账超过 1 秒(路由数量极大)时仍可能漏掉, 漏掉的规则由下次 start 的首轮对账纠正.
+  # procd 只给 watch 主进程发 SIGTERM, 且 procd_kill 不等它退出. watch 会先把手头这一轮对账跑完再退出,
+  # 其中的 ip rule add 可能晚于下面的清理, 留下 1 条规则.
+  # 先等 1 秒让它落地. 一轮对账超过 1 秒(路由数量极大)时仍可能漏掉, 漏掉的规则由下次 start 的首轮对账纠正.
   sleep 1
 
   reconcile 4 clean
   reconcile 6 clean
+  # watch 若是被 SIGKILL 的(procd 也不会再拉起它时), 它的 ip monitor 还在
+  sweep_monitors
 }
