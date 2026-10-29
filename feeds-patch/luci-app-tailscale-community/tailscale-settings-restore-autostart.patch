@@ -1,0 +1,24 @@
+
+/etc/init.d/tailscale-settings(上游 Tokisaki-Galaxy/luci-app-tailscale-community)的补丁.
+应用: 3.feeds-after-script.sh 的 # luci-app-tailscale-community 段, patch -p1 -F0 在包目录下应用, 上下文与上游不匹配时构建失败.
+作用: sync_service_enabled 在 tailscaled 运行时发现 service_enabled 从 0 变回 1, 执行 tailscale enable 恢复 /etc/rc.d/S80tailscale 开机自启链接(日志 "service_enabled=1 again with tailscale running, enabling autostart only"). enable 只创建链接, 不启动也不重启进程.
+原因: 手工编辑配置把 service_enabled 改为 0 时没有停用请求标记, 只执行 disable 删掉自启链接, tailscaled 继续运行. 上游在 tailscaled 运行时把值改回 1, 只更新记录的值就返回, 不恢复链接: 配置是 1, 开机却不自启(tailscale-boot-gate 对 1 什么也不做).
+
+--- a/root/etc/init.d/tailscale-settings
++++ b/root/etc/init.d/tailscale-settings
+@@ -358,7 +358,14 @@ sync_service_enabled() {
+ 	# apply, not because some unrelated option happened to be saved, and not
+ 	# because it crashed or was stopped by hand.
+ 	if tailscale_running; then
+-		[ "$prev" = "1" ] || echo "1" > "$ENABLED_FILE"
++		# Turning the service back on while the daemon is still up (it kept
++		# running after a hand edited disable) only restores the autostart
++		# link: 'enable' does not start or restart anything.
++		if [ "$prev" != "1" ]; then
++			logger -t "$NAME" "service_enabled=1 again with tailscale running, enabling autostart only"
++			"$TAILSCALE_INIT" enable 2>/dev/null
++			echo "1" > "$ENABLED_FILE"
++		fi
+ 		return 0
+ 	fi
+ 

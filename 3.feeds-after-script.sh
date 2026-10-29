@@ -43,6 +43,9 @@ apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-p
 # tailscale-settings 每次都传 --hostname 和 --netfilter-mode: 上游只在一个方向传, tailscale set 不传就保持原值, 取消勾选 disable_fw_config 后 NetfilterMode 一直是 off, 删掉 hostname 选项后已保存的主机名不会清除.
 apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/tailscale-settings-reset-hostname-netfilter.patch"
 
+# tailscale-settings 在 tailscaled 运行时发现 service_enabled 从 0 改回 1: 上游只更新记录的值, 不恢复 /etc/rc.d/S80tailscale 开机自启链接, 配置是 1 开机却不自启. 改成这时执行 tailscale enable(只建链接, 不动进程).
+apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/tailscale-settings-restore-autostart.patch"
+
 # 新增 /etc/init.d/tailscale-boot-gate: 开机时(早于 S80tailscale)service_enabled=0 就删掉 tailscale 的开机链接, 这次开机不启动 tailscaled.
 # 放进包的 root/ 下, luci.mk 会随包安装; 用 install -m 0755 保证有可执行权限.
 install -D -m 0755 "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/tailscale-boot-gate.init" "$FEEDS_HCWHAN/luci-app-tailscale-community/root/etc/init.d/tailscale-boot-gate"
