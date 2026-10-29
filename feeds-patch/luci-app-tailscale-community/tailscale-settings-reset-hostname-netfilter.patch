@@ -1,0 +1,34 @@
+
+/etc/init.d/tailscale-settings(上游 Tokisaki-Galaxy/luci-app-tailscale-community)的补丁.
+应用: 3.feeds-after-script.sh 的 # luci-app-tailscale-community 段, patch -p1 -F0 在包目录下应用, 上下文与上游不匹配时构建失败.
+作用: --hostname 和 --netfilter-mode 每次都传: hostname 为空传 --hostname=, disable_fw_config 未勾选传 --netfilter-mode=on.
+原因: 上游只在 hostname 非空, disable_fw_config 勾选时才传, 而 tailscale set 只改传入的参数, 没传的保持 tailscaled 已保存的值, 后果:
+1. 勾选 disable_fw_config 再取消勾选, NetfilterMode 一直是 off(0), tailscaled 不再写自己的 netfilter 规则, 页面上看起来已恢复.
+2. 手工设置 hostname 后再删掉这个 UCI 选项, 已保存的主机名不会清除, 节点继续用旧主机名.
+
+--- a/root/etc/init.d/tailscale-settings
++++ b/root/etc/init.d/tailscale-settings
+@@ -268,8 +268,8 @@
+ 	# when an exit node is configured, always allow LAN access
+ 	[ -n "$exit_node" ] && set -- "$@" --exit-node-allow-lan-access=true
+ 
+-	# --hostname (only set if non-empty)
+-	[ -n "$hostname" ] && set -- "$@" "--hostname=$hostname"
++	# --hostname (empty resets it to the OS hostname)
++	set -- "$@" "--hostname=$hostname"
+ 
+ 	# --relay-server-port (requires tailscale >= 1.90.5)
+ 	local ts_ver
+@@ -282,9 +282,11 @@
+ 		fi
+ 	fi
+ 
+-	# --netfilter-mode (only when disable_fw_config is enabled and tailscale init doesn't already handle it)
++	# --netfilter-mode (off when disable_fw_config is enabled, back to on otherwise)
+ 	if [ "$disable_fw_config" = "1" ]; then
+ 		set -- "$@" --netfilter-mode=off
++	else
++		set -- "$@" --netfilter-mode=on
+ 	fi
+ 
+ 	logger -t "$NAME" "Applying settings"

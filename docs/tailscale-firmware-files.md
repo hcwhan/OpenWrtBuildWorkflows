@@ -35,7 +35,7 @@
 | 8 | `/usr/share/luci/menu.d/luci-app-tailscale-community.json` | 0644 | 上游+补丁 | 菜单注册, 补丁见表后 |
 | 9 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
 | 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游+补丁 | 后端, ubus 对象 `tailscale` |
-| 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游 | 把 LuCI 设置应用到 tailscale |
+| 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游+补丁 | 把 LuCI 设置应用到 tailscale |
 | 12 | `/usr/libexec/tailscale-setup-firewall` | 0755 | 上游 | "自动配置防火墙"的后台执行者 |
 | 13 | `/etc/init.d/tailscale-boot-gate` | 0755 | 项目 | 开机时按 `service_enabled` 决定 tailscale 是否自启 |
 | 14 | `/usr/lib/lua/luci/i18n/community.zh-cn.lmo` | 0644 | 上游 | 简体中文翻译, `luci.mk` 构建时生成 |
@@ -124,6 +124,11 @@ START=99, STOP=10. 开机以及 UCI `tailscale` 变化时运行:
 3. 按 `service_enabled` 启停:
    1. 为 1: 只有 tailscaled 未运行且上一次应用的值为 0 才执行 enable 再 start. tailscaled 在运行时不动进程, 也不重新生成 `S80tailscale` 链接(对运行中的服务执行 `start` 会清掉内核状态, 见 3.2 第 3 点). 上一次的值已是 1 时, 手工停止或崩溃的 tailscaled 不会被拉起
    2. 为 0: 存在停用请求标记(RPC `set_service_enabled` 创建, 页面的"保存并应用"会调用它, 见 4.4)才执行 stop 再 disable. 没有标记(手工编辑配置)只执行 disable, 进程继续运行. 上一次的值已是 0 时什么也不做
+
+**补丁** `tailscale-settings-reset-hostname-netfilter`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): 改为每次都传 `--hostname` 和 `--netfilter-mode`. 上游只在 `hostname` 非空, `disable_fw_config` 勾选时才传, 而 `tailscale set` 只改传入的参数, 没传的保持 tailscaled 已保存的值, 所以:
+
+1. 勾选 `disable_fw_config` 再取消勾选: `NetfilterMode` 一直是 `off`(0), tailscaled 不再写自己的 netfilter 规则(命令行提示 `netfilter=off; configure iptables yourself.`). 页面上看起来已恢复
+2. 手工设置 `hostname` 后再删掉这个 UCI 选项: 已保存的主机名不会清除, 节点继续用旧主机名
 
 ### 4.3 `/etc/init.d/tailscale-boot-gate`
 
