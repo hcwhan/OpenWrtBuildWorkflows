@@ -5,7 +5,7 @@
 
 ## 1. 说明
 
-1. 状态: 未修复, 本文记录问题和修复方向. 适用 `tailscale` `v1.104.2`, 所有构建目标的相关文件相同(见 `tailscale-firmware-files.md`)
+1. 状态: 未修复, 本文记录问题和修复方向. 适用 `tailscale` `v1.104.4`, 所有构建目标的相关文件相同(见 `tailscale-firmware-files.md`)
 2. 与本项目补丁无关: 触发问题的 `tailscale` 接口由上游的"自动配置防火墙"按钮创建(见 4.2). `tailscale-subnet-guard`(下称守卫)只读取 table 52 和 main, 只增删自己的 pref 1295 规则
 
 ## 2. 背景

@@ -20,8 +20,8 @@ cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/pac
 TAILSCALE_SRC=/tmp/openwrt-tailscale-src
 TAILSCALE_PKG='./feeds/packages/net/tailscale'
 rm -rf "$TAILSCALE_PKG" "$TAILSCALE_SRC"
-git clone --depth 1 https://github.com/GuNanOvO/openwrt-tailscale -b v1.104.2 "$TAILSCALE_SRC" || {
-  echo "ERROR: failed to clone openwrt-tailscale (v1.104.2)" >&2
+git clone --depth 1 https://github.com/GuNanOvO/openwrt-tailscale -b v1.104.4 "$TAILSCALE_SRC" || {
+  echo "ERROR: failed to clone openwrt-tailscale (v1.104.4)" >&2
   exit 1
 }
 test -d "$TAILSCALE_SRC/package/tailscale" || {
@@ -33,9 +33,6 @@ rm -rf "$TAILSCALE_SRC"
 
 # Makefile 加 PKG_BUILD_DEPENDS:=golang/host.
 apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/build-depends-golang-host.patch"
-
-# Makefile 的 GO_PKG_TAGS 追加 ts_omit_flashappliance.
-apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/omit-flashappliance.patch"
 
 # Makefile 去掉两处写死的 UPX 字样: 版本串 "(OpenWrt-UPX)" 改成 "(OpenWrt)", 包描述 TITLE 去掉 "(UPX Compressed)".
 apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/remove-upx-labels.patch"

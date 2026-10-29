@@ -6,7 +6,7 @@
 ## 1. 说明
 
 1. 范围: 所有构建目标的清单相同, 各目标的 `.config-*` 里这三个包均为 `=y`
-2. 版本: `tailscale` 固定为 GuNanOvO/openwrt-tailscale 标签 `v1.104.2`(编译 tailscale/tailscale `v1.104.2`); `luci-app-tailscale-community` 跟随 Tokisaki-Galaxy `master`(未固定), 清单随上游变化
+2. 版本: `tailscale` 固定为 GuNanOvO/openwrt-tailscale 标签 `v1.104.4`(编译 tailscale/tailscale `v1.104.4`); `luci-app-tailscale-community` 跟随 Tokisaki-Galaxy `master`(未固定), 清单随上游变化
 3. 标记: `上游` 原样, `补丁` 上游文件被本项目脚本修改, `项目` 本项目新增
 
 ## 2. 总览
@@ -47,14 +47,13 @@
 
 ### 3.1 补丁
 
-补丁在 `feeds-patch/tailscale/`, 由 `2.feeds-insert-script.sh` 的 `# tailscale` 段按下面的顺序应用, 上下文与上游不匹配时构建失败. 构建结果: `tailscaled` 已去符号(`-s -w`), 内置命令行(构建标签 `ts_include_cli`), 不做 UPX 压缩, 版本串 `1.104.2-1 (OpenWrt)`.
+补丁在 `feeds-patch/tailscale/`, 由 `2.feeds-insert-script.sh` 的 `# tailscale` 段按下面的顺序应用, 上下文与上游不匹配时构建失败. 构建结果: `tailscaled` 已去符号(`-s -w`), 内置命令行(构建标签 `ts_include_cli`), 不做 UPX 压缩, 版本串 `1.104.4-1 (OpenWrt)`.
 
 1. `build-depends-golang-host`: 加 `PKG_BUILD_DEPENDS:=golang/host`, 使用 feeds 里的 Go, 不用 CI 主机上的 Go
-2. `omit-flashappliance`: 构建标签在上游 14 个的基础上加 `ts_omit_flashappliance`. 只用 `ts_omit_clientupdate` 时, flash-appliance 子命令仍链接 `tailscale.com/clientupdate`, `CanAutoUpdate()` 为 true, 启动时无法清除已保存的 `AutoUpdate.Apply=true`
-3. `remove-upx-labels`: 版本串 `1.104.2-1 (OpenWrt-UPX)` 改为 `1.104.2-1 (OpenWrt)`, 去掉 `TITLE` 里的 `(UPX Compressed)`. 上游 Makefile 只在 `$(TOPDIR)/upx/upx` 存在时才压缩, 本项目的构建不提供该文件, 二进制不含 `UPX!` 标记
-4. `remove-maintainer-export`: 删除 `Package/tailscale/install` 里把 `tailscaled` 复制到 `$(TOPDIR)/bin/packages/<arch>/base` 的 5 行(上游为自己的仓库保留的副本)
-5. `tailscale-subnet-guard-install`: `DEPENDS` 加 `ip-full`, 并把守卫脚本安装为 `/etc/init.d/tailscale-subnet-guard`(应用前先把 `tailscale-subnet-guard.init` 复制到包的 `files/`)
-6. `tailscale-subnet-guard-service-hooks`: 给 `/etc/init.d/tailscale` 加 `service_started`, `service_stopped` 钩子
+2. `remove-upx-labels`: 版本串 `1.104.4-1 (OpenWrt-UPX)` 改为 `1.104.4-1 (OpenWrt)`, 去掉 `TITLE` 里的 `(UPX Compressed)`. 上游 Makefile 只在 `$(TOPDIR)/upx/upx` 存在时才压缩, 本项目的构建不提供该文件, 二进制不含 `UPX!` 标记
+3. `remove-maintainer-export`: 删除 `Package/tailscale/install` 里把 `tailscaled` 复制到 `$(TOPDIR)/bin/packages/<arch>/base` 的 5 行(上游为自己的仓库保留的副本)
+4. `tailscale-subnet-guard-install`: `DEPENDS` 加 `ip-full`, 并把守卫脚本安装为 `/etc/init.d/tailscale-subnet-guard`(应用前先把 `tailscale-subnet-guard.init` 复制到包的 `files/`)
+5. `tailscale-subnet-guard-service-hooks`: 给 `/etc/init.d/tailscale` 加 `service_started`, `service_stopped` 钩子
 
 ### 3.2 `/etc/init.d/tailscale`
 
