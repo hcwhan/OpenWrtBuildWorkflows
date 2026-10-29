@@ -1,0 +1,17 @@
+
+/usr/share/rpcd/ucode/tailscale.uc(上游 Tokisaki-Galaxy/luci-app-tailscale-community)的补丁.
+应用: 3.feeds-after-script.sh 的 # luci-app-tailscale-community 段, patch -p1 -F0 在包目录下应用, 上下文与上游不匹配时构建失败.
+作用: fs 的导入列表里加上 rename.
+原因: setup_firewall 调用了 rename 但上游没有导入, 'use strict' 下抛出 access to undeclared variable rename. 接口, 区域, 转发有缺失时 UCI 已提交, RPC 返回 error, 后台重载脚本没有启动, 配置不生效.
+
+--- a/root/usr/share/rpcd/ucode/tailscale.uc
++++ b/root/usr/share/rpcd/ucode/tailscale.uc
+@@ -2,7 +2,7 @@
+ 
+ 'use strict';
+ 
+-import { access, popen, readfile, writefile, unlink } from 'fs';
++import { access, popen, readfile, writefile, rename, unlink } from 'fs';
+ import { cursor } from 'uci';
+ 
+ const uci = cursor();

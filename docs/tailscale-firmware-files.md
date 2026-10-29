@@ -34,7 +34,7 @@
 | 7 | `/www/luci-static/resources/view/tailscale.js` | 0644 | 上游 | LuCI 页面前端 |
 | 8 | `/usr/share/luci/menu.d/luci-app-tailscale-community.json` | 0644 | 上游+补丁 | 菜单注册, 补丁见表后 |
 | 9 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
-| 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
+| 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游+补丁 | 后端, ubus 对象 `tailscale` |
 | 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游 | 把 LuCI 设置应用到 tailscale |
 | 12 | `/usr/libexec/tailscale-setup-firewall` | 0755 | 上游 | "自动配置防火墙"的后台执行者 |
 | 13 | `/etc/init.d/tailscale-boot-gate` | 0755 | 项目 | 开机时按 `service_enabled` 决定 tailscale 是否自启 |
@@ -111,7 +111,9 @@ rpcd 的 ucode 插件, 注册 ubus 对象 `tailscale`, 是网页和系统之间�
 3. `set_service_enabled`: 参数 `enabled` 只能是 `0` 或 `1`, 其他值返回 error. `0` 创建停用请求标记 `/var/run/tailscale-settings/disable-requested`, `1` 删除标记. 不启停进程, 不改 UCI, 真正的停止由 `tailscale-settings` 在重载时执行
 4. `setup_firewall`: 用 UCI 补齐 `network.tailscale` 接口(`proto none`, 设备 `tailscale0`, 已存在但设备不是 `tailscale0` 时改成 `tailscale0`), 防火墙区域 `tailscale`(masq, mtu_fix; 已存在时只补 `network` 引用)和 3 条转发(lan 到 tailscale, tailscale 到 lan, tailscale 到 wan), 只补缺失的. 配置齐全时返回 `Tailscale firewall/interface already configured.`, 不启动后台脚本; 有缺失项时提交, 写 `/var/run/tailscale-fwsetup.status`, 再在后台启动 `/usr/libexec/tailscale-setup-firewall`. 该脚本依次执行 `/etc/init.d/network reload` 和 `/etc/init.d/firewall reload`, 单独拆成脚本是为了让 RPC 先返回, 避免 reload 网络时掐断正在处理的请求
 
-**缺陷**: `setup_firewall` 写状态文件时调用 `rename`, 而 `tailscale.uc` 只从 `fs` 导入了 `access`, `popen`, `readfile`, `writefile`, `unlink`, 没有 `rename`, 抛出 `access to undeclared variable rename`. 结果: 有缺失项时 UCI 已提交, RPC 立即返回 `error`, 后台脚本没有启动, `network` 和 `firewall` 没有重载, 没有状态文件. 手动完成需要执行 `/etc/init.d/network reload` 和 `/etc/init.d/firewall reload`. 在 `import` 里加上 `rename` 即可修复.
+**补丁** `import-fs-rename`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): `fs` 的导入列表里加上 `rename`. 上游的 `setup_firewall` 调用了 `rename` 但没导入, 在 `'use strict'` 下抛出 `access to undeclared variable rename`; 有缺失项时 UCI 已提交, RPC 返回 `error`, 后台脚本没有启动, `network` 和 `firewall` 没有重载.
+
+**补丁** `setup-firewall-status-error-message`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): `setup_firewall` 写不了状态文件 `/var/run/tailscale-fwsetup.status` 时, 返回的 `error` 改为说明配置已提交但未应用. 这个出口在 UCI 提交之后, 后台脚本没有启动, 上游的消息却是 `Configuration was not changed.`. 再次执行时配置已齐全, 直接返回(见第 4 点), 不会补做重载.
 
 ### 4.2 `/etc/init.d/tailscale-settings`
 

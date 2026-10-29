@@ -31,6 +31,12 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
 
+# tailscale.uc 的 import 补上 rename: setup_firewall 写状态文件要用, 上游漏了, 在 'use strict' 下抛异常, 后台重载脚本不会启动.
+apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/import-fs-rename.patch"
+
+# tailscale.uc 的 setup_firewall 写不了状态文件时, 错误消息说明配置已提交但未应用.
+apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/setup-firewall-status-error-message.patch"
+
 # 新增 /etc/init.d/tailscale-boot-gate: 开机时(早于 S80tailscale)service_enabled=0 就删掉 tailscale 的开机链接, 这次开机不启动 tailscaled.
 # 放进包的 root/ 下, luci.mk 会随包安装; 用 install -m 0755 保证有可执行权限.
 install -D -m 0755 "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/tailscale-boot-gate.init" "$FEEDS_HCWHAN/luci-app-tailscale-community/root/etc/init.d/tailscale-boot-gate"
