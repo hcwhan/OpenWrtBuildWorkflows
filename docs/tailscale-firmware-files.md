@@ -31,10 +31,10 @@
 | 4 | `/etc/init.d/tailscale-subnet-guard` | 0755 | 项目 | 守卫: 随 tailscale 启停, 按需增删 ip rule, 防子网劫持 |
 | 5 | `/etc/config/tailscale` | 0644 | 上游 | UCI 配置 |
 | 6 | `/lib/upgrade/keep.d/tailscale` | 0644 | 上游 | sysupgrade 保留清单, 内容为 `/etc/tailscale/`. 不是上游 Makefile 安装的, 由构建系统根据 `conffiles` 生成 |
-| 7 | `/www/luci-static/resources/view/tailscale.js` | 0644 | 上游+补丁 | LuCI 页面前端 |
+| 7 | `/www/luci-static/resources/view/tailscale.js` | 0644 | 上游 | LuCI 页面前端 |
 | 8 | `/usr/share/luci/menu.d/luci-app-tailscale-community.json` | 0644 | 上游+补丁 | 菜单注册, 补丁见表后 |
 | 9 | `/usr/share/rpcd/acl.d/luci-app-tailscale-community.json` | 0644 | 上游 | 权限声明 |
-| 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游+补丁 | 后端, ubus 对象 `tailscale` |
+| 10 | `/usr/share/rpcd/ucode/tailscale.uc` | 0755 | 上游 | 后端, ubus 对象 `tailscale` |
 | 11 | `/etc/init.d/tailscale-settings` | 0755 | 上游+补丁 | 把 LuCI 设置应用到 tailscale |
 | 12 | `/usr/libexec/tailscale-setup-firewall` | 0755 | 上游 | "自动配置防火墙"的后台执行者 |
 | 13 | `/etc/init.d/tailscale-boot-gate` | 0755 | 项目 | 开机时按 `service_enabled` 决定 tailscale 是否自启 |
@@ -110,10 +110,6 @@ rpcd 的 ucode 插件, 注册 ubus 对象 `tailscale`, 是网页和系统之间�
 3. `set_service_enabled`: 参数 `enabled` 只能是 `0` 或 `1`, 其他值返回 error. `0` 创建停用请求标记 `/var/run/tailscale-settings/disable-requested`, `1` 删除标记. 不启停进程, 不改 UCI, 真正的停止由 `tailscale-settings` 在重载时执行
 4. `setup_firewall`: 用 UCI 补齐 `network.tailscale` 接口(`proto none`, 设备 `tailscale0`, 已存在但设备不是 `tailscale0` 时改成 `tailscale0`), 防火墙区域 `tailscale`(masq, mtu_fix; 已存在时只补 `network` 引用)和 3 条转发(lan 到 tailscale, tailscale 到 lan, tailscale 到 wan), 只补缺失的. 配置齐全时返回 `Tailscale firewall/interface already configured.`, 不启动后台脚本; 有缺失项时提交, 写 `/var/run/tailscale-fwsetup.status`, 再在后台启动 `/usr/libexec/tailscale-setup-firewall`. 该脚本依次执行 `/etc/init.d/network reload` 和 `/etc/init.d/firewall reload`, 单独拆成脚本是为了让 RPC 先返回, 避免 reload 网络时掐断正在处理的请求
 
-**补丁** `import-fs-rename`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): `fs` 的导入列表里加上 `rename`. 上游的 `setup_firewall` 调用了 `rename` 但没导入, 在 `'use strict'` 下抛出 `access to undeclared variable rename`; 有缺失项时 UCI 已提交, RPC 返回 `error`, 后台脚本没有启动, `network` 和 `firewall` 没有重载.
-
-**补丁** `setup-firewall-status-error-message`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): `setup_firewall` 写不了状态文件 `/var/run/tailscale-fwsetup.status` 时, 返回的 `error` 改为说明配置已提交但未应用. 这个出口在 UCI 提交之后, 后台脚本没有启动, 上游的消息却是 `Configuration was not changed.`. 再次执行时配置已齐全, 直接返回(见第 4 点), 不会补做重载.
-
 ### 4.2 `/etc/init.d/tailscale-settings`
 
 START=99, STOP=10. 开机以及 UCI `tailscale` 变化时运行:
@@ -123,11 +119,6 @@ START=99, STOP=10. 开机以及 UCI `tailscale` 变化时运行:
 3. 按 `service_enabled` 启停:
    1. 为 1: 只有 tailscaled 未运行且上一次应用的值为 0 才执行 enable 再 start. tailscaled 在运行且上一次应用的值为 0 时只执行 enable(重建 `S80tailscale` 链接, 日志 `service_enabled=1 again with tailscale running, enabling autostart only`), 不 start, 不动进程(对运行中的服务执行 `start` 会清掉内核状态, 见 3.2 第 3 点). 上一次的值已是 1 时, 手工停止或崩溃的 tailscaled 不会被拉起
    2. 为 0: 存在停用请求标记(RPC `set_service_enabled` 创建, 页面的"保存并应用"会调用它, 见 4.4)才执行 stop 再 disable. 没有标记(手工编辑配置)只执行 disable, 进程继续运行. 上一次的值已是 0 时什么也不做
-
-**补丁** `tailscale-settings-reset-hostname-netfilter`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): 改为每次都传 `--hostname` 和 `--netfilter-mode`. 上游只在 `hostname` 非空, `disable_fw_config` 勾选时才传, 而 `tailscale set` 只改传入的参数, 没传的保持 tailscaled 已保存的值, 所以:
-
-1. 勾选 `disable_fw_config` 再取消勾选: `NetfilterMode` 一直是 `off`(0), tailscaled 不再写自己的 netfilter 规则(命令行提示 `netfilter=off; configure iptables yourself.`). 页面上看起来已恢复
-2. 手工设置 `hostname` 后再删掉这个 UCI 选项: 已保存的主机名不会清除, 节点继续用旧主机名
 
 **补丁** `tailscale-settings-restore-autostart`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): tailscaled 在运行时 `service_enabled` 从 0 变回 1, 执行 `enable` 恢复 `S80tailscale` 链接. 手工编辑配置把 `service_enabled` 改为 0 时只 `disable`, 链接被删, 进程继续运行. 上游在这之后改回 1 时只更新记录的值, 不恢复链接: 配置是 1, 开机却不自启(`tailscale-boot-gate` 对 1 什么也不做).
 
@@ -146,13 +137,6 @@ LuCI 页面前端, 来自上游. "保存并应用"由 `handleSaveApply` 处理, 
 1. `map.save()`: 解析表单, 把改动暂存到设备的 UCI 变更列表(尚未提交)
 2. RPC `set_service_enabled`: 按 `service_enabled` 的新值创建或删除停用请求标记(见 4.1 第 3 点). 失败时只在控制台记一条告警, 不中断后面的步骤
 3. `ui.changes.apply`: LuCI 的标准应用流程(带回滚保护), 提交后触发 `tailscale-settings` 重载(见 4.2)
-
-**补丁** `save-apply-set-service-enabled`(在 `feeds-patch/luci-app-tailscale-community/`, 由 `3.feeds-after-script.sh` 的 `# luci-app-tailscale-community` 段应用, 上下文与上游不匹配时构建失败): 修正第 2 步里的两处错误. 上游的这两处错误让 `set_service_enabled` 的请求始终无效, 在 LuCI 里把服务从启用改为停用时, 停用请求标记不会创建, 重载时只 disable 开机自启, `tailscaled` 继续运行(日志 `service_enabled=0 for the first time, disabling autostart only`), 与页面上该选项的说明(禁用后服务会被停止)不符:
-
-1. 读取时机: 上游在 `map.save()` 之前用 `uci.get()` 读 `service_enabled`. 表单的值要等 `map.save()` 解析表单时才写进 uci 模型, 此前读到的是上一次保存的值: 从启用改为停用时读到 `1`, 请求的是"启用"; 从停用改为启用时读到 `0`, 请求的是"停用". 补丁改为在 `map.save()` 的回调里读(表单解析之后, 暂存的修改发给设备之前)
-2. 参数形状: RPC 声明为 `params: ['enabled']`, 调用时按位置把第一个实参作为 `enabled` 的值. 上游传的是对象 `{ enabled: '0' }`, ubus 收到的是 `{"enabled": {"enabled": "0"}}`, 而后端声明 `enabled` 是字符串, ubus 在参数校验阶段就返回状态码 2(`Invalid argument`), 请求到不了后端的处理函数. 声明里没有 `reject: true`, 状态码 2 被当作普通返回值, 第 2 步的 `catch` 不会触发, 页面没有任何提示. 补丁改为直接传字符串 `'0'` 或 `'1'`
-
-两处单独修都不够: 只修第 1 点时请求的形状仍然无效; 只修第 2 点时, 从启用改为停用传的是 `'1'`, 从停用改为启用传的是 `'0'`. 从停用改为启用在补丁前不受影响: 重载时 `service_enabled` 已是 `1`, 无论有没有标记, 都会先清掉标记再启动(见 4.2 第 3 点).
 
 ## 5. 运行时产生和修改的内容
 

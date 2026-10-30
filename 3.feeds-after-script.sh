@@ -31,18 +31,6 @@ grep -qF 'admin/vpn/tailscale' "$TAILSCALE_MENU_JSON" || {
 }
 sed -i 's/admin\/vpn\/tailscale/admin\/services\/tailscale/g'          "$TAILSCALE_MENU_JSON"
 
-# tailscale.uc 的 import 补上 rename: setup_firewall 写状态文件要用, 上游漏了, 在 'use strict' 下抛异常, 后台重载脚本不会启动.
-apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/import-fs-rename.patch"
-
-# tailscale.uc 的 setup_firewall 写不了状态文件时, 错误消息说明配置已提交但未应用.
-apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/setup-firewall-status-error-message.patch"
-
-# tailscale.js 的 handleSaveApply 有两处错误, 在 LuCI 里停用服务时不会创建停用请求标记, tailscaled 不会被停止: 在 map.save() 之前读 service_enabled 读到旧值; 给 set_service_enabled 传了对象, 被 ubus 以参数无效拒绝. 改成在 map.save() 解析表单之后读, 并直接传 '0' 或 '1'.
-apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/save-apply-set-service-enabled.patch"
-
-# tailscale-settings 每次都传 --hostname 和 --netfilter-mode: 上游只在一个方向传, tailscale set 不传就保持原值, 取消勾选 disable_fw_config 后 NetfilterMode 一直是 off, 删掉 hostname 选项后已保存的主机名不会清除.
-apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/tailscale-settings-reset-hostname-netfilter.patch"
-
 # tailscale-settings 在 tailscaled 运行时发现 service_enabled 从 0 改回 1: 上游只更新记录的值, 不恢复 /etc/rc.d/S80tailscale 开机自启链接, 配置是 1 开机却不自启. 改成这时执行 tailscale enable(只建链接, 不动进程).
 apply_patch "$FEEDS_HCWHAN/luci-app-tailscale-community" "$WORKFLOW_ROOT/feeds-patch/luci-app-tailscale-community/tailscale-settings-restore-autostart.patch"
 
