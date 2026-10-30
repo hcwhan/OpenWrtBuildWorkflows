@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# LAN 地址不等于 192.168.4.9 时, 设为该值.
+if [ "$(uci -q get network.lan.ipaddr)" != "192.168.4.9" ]; then
+	uci set network.lan.ipaddr='192.168.4.9'
+	uci commit network
+fi
+
+exit 0
