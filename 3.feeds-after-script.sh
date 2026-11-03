@@ -8,6 +8,18 @@ FEEDS_HCWHAN="$WORKFLOW_ROOT/feeds-hcwhan"
 # 引入共用函数 apply_patch.
 source "$WORKFLOW_ROOT/0.feeds-common.sh"
 
+# 在 Makefile 的 luci.mk include 行之前加 PKG_PO_VERSION:=$(PKG_VERSION)-$(PKG_RELEASE), 使 i18n 包版本与主包一致.
+# i18n 包的版本取 PKG_PO_VERSION, 默认值读 git 历史; 复制进构建树的包没有历史, 版本会变成 unknown.
+# set_po_version <Makefile>: Makefile 缺少 PKG_VERSION, PKG_RELEASE 或 luci.mk 的 include 行时让构建失败.
+set_po_version() {
+  local mk="$1"
+  grep -q '^PKG_VERSION:=' "$mk" && grep -q '^PKG_RELEASE:=' "$mk" && grep -qxF 'include $(TOPDIR)/feeds/luci/luci.mk' "$mk" || {
+    echo "ERROR: PKG_VERSION, PKG_RELEASE or the luci.mk include line not found in $mk; upstream changed, review" >&2
+    exit 1
+  }
+  sed -i 's|^include \$(TOPDIR)/feeds/luci/luci\.mk$|PKG_PO_VERSION:=$(PKG_VERSION)-$(PKG_RELEASE)\n&|' "$mk"
+}
+
 
 # luci-app-tailscale-community 开始
 TAILSCALE_COMMUNITY_SRC=/tmp/luci-app-tailscale-community-src
@@ -21,7 +33,18 @@ test -d "$TAILSCALE_COMMUNITY_SRC/luci-app-tailscale-community" || {
   exit 1
 }
 cp -a "$TAILSCALE_COMMUNITY_SRC/luci-app-tailscale-community"          "$FEEDS_HCWHAN/luci-app-tailscale-community"
+TAILSCALE_COMMUNITY_VERSION="$(git -C "$TAILSCALE_COMMUNITY_SRC" log -1 --abbrev=7 --date=format:%Y.%m.%d --format='%cd~%h')"
 rm -rf "$TAILSCALE_COMMUNITY_SRC"
+
+# 上游 Makefile 没有 PKG_VERSION, luci.mk 读 git 历史取版本; 复制进构建树的包没有历史, 主包版本会变成 unknown.
+# 版本取克隆 HEAD 的 提交日期~短哈希, PKG_RELEASE 为 1, 写在 include rules.mk 之后. 上游已定义 PKG_VERSION 时让构建失败.
+TAILSCALE_COMMUNITY_MK="$FEEDS_HCWHAN/luci-app-tailscale-community/Makefile"
+grep -qxF 'include $(TOPDIR)/rules.mk' "$TAILSCALE_COMMUNITY_MK" && ! grep -q '^PKG_VERSION:=' "$TAILSCALE_COMMUNITY_MK" || {
+  echo "ERROR: include rules.mk line not found, or PKG_VERSION already defined, in $TAILSCALE_COMMUNITY_MK; upstream changed, review" >&2
+  exit 1
+}
+sed -i "s|^include \$(TOPDIR)/rules\.mk\$|&\nPKG_VERSION:=$TAILSCALE_COMMUNITY_VERSION\nPKG_RELEASE:=1|" "$TAILSCALE_COMMUNITY_MK"
+set_po_version "$TAILSCALE_COMMUNITY_MK"
 
 # 把菜单入口从 VPN 移到 服务(admin/vpn/tailscale -> admin/services/tailscale).
 TAILSCALE_MENU_JSON="$FEEDS_HCWHAN/luci-app-tailscale-community/root/usr/share/luci/menu.d/luci-app-tailscale-community.json"
@@ -53,6 +76,7 @@ git clone --depth 1 https://github.com/sbwml/v2ray-geodata           "$FEEDS_HCW
 }
 # 删除嵌套的 .git, 避免这些克隆被识别为独立仓库, 也避免被复制进构建树.
 rm -rf "$FEEDS_HCWHAN/mosdns/.git" "$FEEDS_HCWHAN/v2ray-geodata/.git"
+set_po_version "$FEEDS_HCWHAN/mosdns/luci-app-mosdns/Makefile"
 # luci-app-mosdns 结束
 
 

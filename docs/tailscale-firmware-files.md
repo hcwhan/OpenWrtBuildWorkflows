@@ -6,7 +6,7 @@
 ## 1. 说明
 
 1. 范围: 所有构建目标的清单相同, 各目标的 `.config-*` 里这三个包均为 `=y`
-2. 版本: `tailscale` 固定为 GuNanOvO/openwrt-tailscale 标签 `v1.104.4`(编译 tailscale/tailscale `v1.104.4`); `luci-app-tailscale-community` 跟随 Tokisaki-Galaxy `master`(未固定), 清单随上游变化
+2. 版本: `tailscale` 固定为 GuNanOvO/openwrt-tailscale 标签 `v1.104.4`(编译 tailscale/tailscale `v1.104.4`); `luci-app-tailscale-community` 跟随 Tokisaki-Galaxy `master`(未固定), 清单随上游变化, 包版本(含 `luci-i18n-tailscale-community-zh-cn`)为 `<克隆 HEAD 的提交日期>~<短哈希>-1`, 由 `3.feeds-after-script.sh` 写入 Makefile
 3. 标记: `上游` 原样, `补丁` 上游文件被本项目脚本修改, `项目` 本项目新增
 
 ## 2. 总览
