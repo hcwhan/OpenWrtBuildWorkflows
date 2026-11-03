@@ -47,6 +47,9 @@ apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-sub
 
 # tailscale.init 末尾追加 service_started/service_stopped 钩子, 使 tailscale 启停时一并启停 tailscale-subnet-guard.
 apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-subnet-guard-service-hooks.patch"
+
+# tailscale.init 读取 UCI 选项 gogc, gomemlimit, 设置了就作为 GOGC, GOMEMLIMIT 环境变量传给 tailscaled, 限制内存占用.
+apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-init-gogc.patch"
 # tailscale 结束
 
 

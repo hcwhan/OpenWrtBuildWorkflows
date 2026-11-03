@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# tailscaled 的 Go 运行时内存参数, 由 /etc/init.d/tailscale 读取.
+uci set tailscale.settings.gogc='10'
+uci commit tailscale
+
+exit 0

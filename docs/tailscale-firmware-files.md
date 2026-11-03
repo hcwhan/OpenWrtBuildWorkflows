@@ -54,10 +54,11 @@
 3. `remove-maintainer-export`: 删除 `Package/tailscale/install` 里把 `tailscaled` 复制到 `$(TOPDIR)/bin/packages/<arch>/base` 的 5 行(上游为自己的仓库保留的副本)
 4. `tailscale-subnet-guard-install`: `DEPENDS` 加 `ip-full`, 并把守卫脚本安装为 `/etc/init.d/tailscale-subnet-guard`(应用前先把 `tailscale-subnet-guard.init` 复制到包的 `files/`)
 5. `tailscale-subnet-guard-service-hooks`: 给 `/etc/init.d/tailscale` 加 `service_started`, `service_stopped` 钩子
+6. `tailscale-init-gogc`: 让 `/etc/init.d/tailscale` 读取 UCI 选项 `gogc`, `gomemlimit`, 非空时作为环境变量 `GOGC`, `GOMEMLIMIT` 传给 `tailscaled`
 
 ### 3.2 `/etc/init.d/tailscale`
 
-procd 服务脚本, START=80, 没有 STOP. 启动前和停止时执行 `tailscaled --cleanup`, 设置 `TS_NO_LOGS_NO_SUPPORT=true` 关闭日志上传. 异常退出自动重启, 连续失败后 procd 放弃, 需要 `/etc/init.d/tailscale restart`.
+procd 服务脚本, START=80, 没有 STOP. 启动前和停止时执行 `tailscaled --cleanup`, 设置 `TS_NO_LOGS_NO_SUPPORT=true` 关闭日志上传. UCI 选项 `gogc`, `gomemlimit` 非空时传给 `tailscaled`, 限制内存占用(补丁 6, 选项见 3.4). 异常退出自动重启, 连续失败后 procd 放弃, 需要 `/etc/init.d/tailscale restart`.
 
 1. 钩子: `service_started`, `service_stopped` 分别执行守卫的 `start`, `stop`. `rc.common` 在 `start`, `stop`, `restart` 和开机的 `boot` 时调用钩子(`restart` 时守卫换新进程号); procd 自动重启崩溃的 `tailscaled` 时不调用, 守卫保持原状
 2. 自启: 脚本没有"是否自启"的开关, 只取决于镜像构建时生成的 `/etc/rc.d/S80tailscale` 链接. `tailscale-settings` 关闭服务时会 disable 它, 但新镜像会重新带来这个链接(例如刷机保留配置后), 所以由 `tailscale-boot-gate`(见 4.3)在开机时按 `service_enabled` 决定是否保留
@@ -94,6 +95,13 @@ UCI 配置(conffile), 出厂只有 `settings` 一节, 5 个守护进程选项, �
 2. `port`(默认 `41641`): 监听端口(`--port`)
 3. `state_file`(默认 `/etc/tailscale/tailscaled.state`): 状态文件路径(`--state`)
 4. `fw_mode`(默认 `nftables`): 防火墙后端(环境变量 `TS_DEBUG_FIREWALL_MODE`)
+
+补丁 6 另让 `/etc/init.d/tailscale` 读取两个出厂不设置的选项, 非空时作为环境变量传给 `tailscaled`:
+
+1. `gogc`: 环境变量 `GOGC`
+2. `gomemlimit`: 环境变量 `GOMEMLIMIT`
+
+设备覆盖层 `files/dev-<设备名>/etc/uci-defaults/99-tailscale-memory` 存在时, 固件首次开机把脚本里指定的选项(可以只指定其中一个)写入配置, 成功后自动删除. 没有该脚本的构建不设置这两个选项.
 
 LuCI 页面保存时还会写入 `tailscale-settings` 读取的选项(如 `service_enabled`, `dns_mode`), 以及只供页面登录用的 `custom_login_url`, `custom_login_AuthKey`: Auth Key 以明文留在该文件里, `tailscaled` 和 `tailscale-settings` 都不读取它们.
 
