@@ -1,0 +1,16 @@
+
+scripts/gen_image_generic.sh(OpenWrt 构建树根目录下)的补丁.
+应用: 2.feeds-insert-script.sh 的 # GPT 备份头 段, patch -p1 -F0 在构建树根目录下应用, 上下文与上游不匹配时构建失败.
+作用: GUID(GPT)分支不在 rootfs 之后追加 63 扇区的填充, 镜像长度止于 ptgen 写入的备份头.
+说明: rootfs 之后的区域存放 ptgen 写入的备份分区表和备份头.
+
+--- a/scripts/gen_image_generic.sh
++++ b/scripts/gen_image_generic.sh
+@@ -50,7 +50,6 @@
+ dd if="$ROOTFSIMAGE" of="$OUTPUT" bs=512 seek="$ROOTFSOFFSET" conv=notrunc
+ 
+ if [ -n "$GUID" ]; then
+-    [ -n "$PADDING" ] && dd if=/dev/zero of="$OUTPUT" bs=512 seek="$((ROOTFSOFFSET + ROOTFSSIZE))" conv=notrunc count="$sect"
+     mkfs.fat --invariant -n kernel -C "$OUTPUT.kernel" -S 512 "$((KERNELSIZE / 1024))"
+     LC_ALL=C dos_dircopy "$KERNELDIR" /
+ else

@@ -1,0 +1,28 @@
+
+firmware-utils(tools/firmware-utils)的补丁.
+应用: 2.feeds-insert-script.sh 的 # GPT 备份头 段把本文件复制到 tools/firmware-utils/patches/, 由 OpenWrt 构建 firmware-utils 时应用.
+作用: ptgen 带 -DWANT_ALTERNATE_PTABLE 编译, 生成 GPT 时在镜像末尾写入备份分区表和备份头.
+说明: 保护性 MBR 的分区长度取 end + 1 - GPT_HEADER_SECTOR. end 是备份头所在的 LBA, 备份头是镜像的最后一个扇区, 分区覆盖 LBA 1 到 end.
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -96,7 +96,7 @@
+ FW_UTIL(oseama src/md5.c "" "")
+ FW_UTIL(otrx "" "" "")
+ FW_UTIL(pc1crypt "" "" "")
+-FW_UTIL(ptgen src/cyg_crc32.c "" "")
++FW_UTIL(ptgen src/cyg_crc32.c "-DWANT_ALTERNATE_PTABLE" "")
+ FW_UTIL(seama src/md5.c "" "")
+ FW_UTIL(sign_dlink_ru src/md5.c "" "")
+ FW_UTIL(spw303v "" "" "")
+--- a/src/ptgen.c
++++ b/src/ptgen.c
+@@ -492,7 +492,7 @@
+ 
+ 	pte[0].type = 0xEE;
+ 	pte[0].start = cpu_to_le32(GPT_HEADER_SECTOR);
+-	pte[0].length = cpu_to_le32(end - GPT_HEADER_SECTOR);
++	pte[0].length = cpu_to_le32(end + 1 - GPT_HEADER_SECTOR);
+ 	to_chs(GPT_HEADER_SECTOR, pte[0].chs_start);
+ 	to_chs(end, pte[0].chs_end);
+ 

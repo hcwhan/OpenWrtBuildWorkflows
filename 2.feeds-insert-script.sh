@@ -121,6 +121,15 @@ cp "$WORKFLOW_ROOT/feeds-patch/miniupnpd/902-change-log.patch"       ./feeds/pac
 # miniupnpd 结束
 
 
+# GPT 备份头 开始
+# gen_image_generic.sh 生成的 GPT 镜像, 末尾带备份分区表和备份头: ptgen 写入备份, 镜像脚本不在其后填充.
+# firmware-utils 在构建时才从源码包解压出来, 所以不能用 apply_patch, 复制进 tools/firmware-utils/patches/ 由 OpenWrt 构建时应用.
+mkdir -p ./tools/firmware-utils/patches
+cp "$WORKFLOW_ROOT/openwrt-patch/firmware-utils/900-ptgen-backup-gpt.patch" ./tools/firmware-utils/patches/
+apply_patch . "$WORKFLOW_ROOT/openwrt-patch/gen_image_generic/remove-gpt-padding.patch"
+# GPT 备份头 结束
+
+
 
 # 修改文案: 菜单标题, 翻译文本 开始
 CPUFREQ_PO='./feeds/luci/applications/luci-app-cpufreq/po/zh_Hans/cpufreq.po'
