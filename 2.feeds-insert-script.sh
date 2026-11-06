@@ -12,6 +12,8 @@ source "$WORKFLOW_ROOT/0.feeds-common.sh"
 # 用项目内 feeds-master 的 golang 替换 feed 自带的 golang(为了使用更高版本的 Go 版本).
 rm -rf ./feeds/packages/lang/golang
 cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/packages/lang/golang
+# go-strip-helper 由 golang-version.mk 的 RSTRIP 直接执行, 需要可执行权限.
+chmod +x ./feeds/packages/lang/golang/go-strip-helper
 # golang 结束
 
 
@@ -57,6 +59,9 @@ apply_patch "$TAILSCALE_PKG" "$WORKFLOW_ROOT/feeds-patch/tailscale/tailscale-ini
 # 用项目内 feeds-master 的副本替换 feed 自带的 zerotier.
 rm -rf ./feeds/packages/net/zerotier
 cp -a "$WORKFLOW_ROOT/feeds-master/zerotier"                         ./feeds/packages/net/zerotier
+# init 脚本和 zerotier-fw4 在固件中被直接执行, 需要可执行权限.
+chmod +x ./feeds/packages/net/zerotier/files/etc/init.d/zerotier
+chmod +x ./feeds/packages/net/zerotier/files/usr/bin/zerotier-fw4
 # zerotier 结束
 
 
@@ -67,6 +72,8 @@ ZEROTIER_MENU_JSON="$ZEROTIER_LUCI_SRC/root/usr/share/luci/menu.d/luci-app-zerot
 # 用项目内 feeds-master 的副本替换 feed 自带的 luci-app-zerotier.
 rm -rf "$ZEROTIER_LUCI_SRC"
 cp -a "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                ./feeds/luci/applications/luci-app-zerotier
+# uci-defaults 脚本加可执行权限.
+chmod +x "$ZEROTIER_LUCI_SRC/root/etc/uci-defaults/40_luci-zerotier"
 
 # 把菜单入口从 VPN 移到 服务(admin/vpn/zerotier -> admin/services/zerotier).
 grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
