@@ -20,8 +20,8 @@ cp -a "$WORKFLOW_ROOT/feeds-master/golang"                           ./feeds/pac
 TAILSCALE_SRC=/tmp/openwrt-tailscale-src
 TAILSCALE_PKG='./feeds/packages/net/tailscale'
 rm -rf "$TAILSCALE_PKG" "$TAILSCALE_SRC"
-git clone --depth 1 https://github.com/GuNanOvO/openwrt-tailscale -b v1.104.4 "$TAILSCALE_SRC" || {
-  echo "ERROR: failed to clone openwrt-tailscale (v1.104.4)" >&2
+git clone --depth 1 https://github.com/GuNanOvO/openwrt-tailscale -b v1.104.5 "$TAILSCALE_SRC" || {
+  echo "ERROR: failed to clone openwrt-tailscale (v1.104.5)" >&2
   exit 1
 }
 test -d "$TAILSCALE_SRC/package/tailscale" || {
