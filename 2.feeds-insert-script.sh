@@ -72,8 +72,6 @@ ZEROTIER_MENU_JSON="$ZEROTIER_LUCI_SRC/root/usr/share/luci/menu.d/luci-app-zerot
 # 用项目内 feeds-master 的副本替换 feed 自带的 luci-app-zerotier.
 rm -rf "$ZEROTIER_LUCI_SRC"
 cp -a "$WORKFLOW_ROOT/feeds-master/luci-app-zerotier"                ./feeds/luci/applications/luci-app-zerotier
-# uci-defaults 脚本加可执行权限.
-chmod +x "$ZEROTIER_LUCI_SRC/root/etc/uci-defaults/40_luci-zerotier"
 
 # 把菜单入口从 VPN 移到 服务(admin/vpn/zerotier -> admin/services/zerotier).
 grep -qF 'admin/vpn/zerotier' "$ZEROTIER_MENU_JSON" || {
