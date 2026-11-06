@@ -5,14 +5,11 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for wolplus From sundaqiang
+LUCI_TITLE:=LuCI support for wolplus
 LUCI_DEPENDS:=+luci-compat +etherwake
 LUCI_PKGARCH:=all
-PKG_VERSION:=1.0
-PKG_RELEASE:=20201225
-PKG_MAINTAINER:=sundaqiang
-# i18n 包版本与主包一致, 避免 luci.mk 因没有 git 历史取成 unknown
-PKG_PO_VERSION:=$(PKG_VERSION)-$(PKG_RELEASE)
+PKG_VERSION:=1.2
+PKG_PO_VERSION=$(PKG_VERSION)-$(PKG_RELEASE)
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

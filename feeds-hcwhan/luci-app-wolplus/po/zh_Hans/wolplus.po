@@ -1,22 +1,32 @@
-msgid "wolplus"
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_Hans\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "WoLPlus"
 msgstr "WoLPlus"
 
-msgid "Wake up your LAN device"
-msgstr "唤醒你的局域网设备"
+msgid "Wake on LAN is a mechanism to remotely boot computers in the local network."
+msgstr "网络唤醒是一种远程启动局域网内计算机的机制"
 
-msgid "macclient"
+msgid "Host Clients"
 msgstr "设备列表"
 
-msgid "name"
+msgid "Name"
 msgstr "名称"
 
-msgid "macaddr"
-msgstr "客户端MAC"
+msgid "MAC Address"
+msgstr "MAC 地址"
 
-msgid "maceth"
+msgid "Network Interface"
 msgstr "网络接口"
 
-msgid "awake"
+msgid "Wake Up Host"
+msgstr "唤醒主机"
+
+msgid "Awake"
 msgstr "唤醒"
 
 msgid "Please [Save & Apply] your changes first"
