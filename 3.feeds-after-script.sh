@@ -77,6 +77,16 @@ git clone --depth 1 https://github.com/sbwml/v2ray-geodata           "$FEEDS_HCW
 # 删除嵌套的 .git, 避免这些克隆被识别为独立仓库, 也避免被复制进构建树.
 rm -rf "$FEEDS_HCWHAN/mosdns/.git" "$FEEDS_HCWHAN/v2ray-geodata/.git"
 set_po_version "$FEEDS_HCWHAN/mosdns/luci-app-mosdns/Makefile"
+
+# 防 DNS 污染: init 脚本生成 /var/etc/mosdns.json 之后, 由 anti-pollution.uc 改写配置(改写内容见脚本头部注释).
+# 脚本放进包的 root/ 下, luci.mk 会随包安装; 用 install -m 0755 保证有可执行权限. 补丁让 init 脚本在生成配置之后调用它, 脚本失败时不启动 mosdns.
+MOSDNS_PKG="$FEEDS_HCWHAN/mosdns/luci-app-mosdns"
+# 上游 init 脚本不满足脚本的假设时让构建失败, 检查项见 check-upstream-init.sh.
+bash "$WORKFLOW_ROOT/feeds-patch/luci-app-mosdns/check-upstream-init.sh" "$MOSDNS_PKG/root/etc/init.d/mosdns"
+install -D -m 0755 "$WORKFLOW_ROOT/feeds-patch/luci-app-mosdns/anti-pollution.uc" "$MOSDNS_PKG/root/usr/share/mosdns/anti-pollution.uc"
+apply_patch "$MOSDNS_PKG" "$WORKFLOW_ROOT/feeds-patch/luci-app-mosdns/init-call-anti-pollution.patch"
+# 页面文案: 白名单, DDNS 域名, Apple 域名解析优化的说明与改写后的行为一致, DNS 重定向的说明用局域网 DNS 指客户端发出的查询. 同时修改 JS 英文原文和 zh_Hans 的 po.
+apply_patch "$MOSDNS_PKG" "$WORKFLOW_ROOT/feeds-patch/luci-app-mosdns/luci-text.patch"
 # luci-app-mosdns 结束
 
 

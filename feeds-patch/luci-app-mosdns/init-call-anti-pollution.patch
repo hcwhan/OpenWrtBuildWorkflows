@@ -1,0 +1,26 @@
+
+/etc/init.d/mosdns(上游 sbwml/luci-app-mosdns)的补丁.
+应用: 3.feeds-after-script.sh 的 # luci-app-mosdns 段, patch -p1 -F0 在 luci-app-mosdns 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: start_service 在 generate_config 之后调用 /usr/share/mosdns/anti-pollution.uc 改写 /var/etc/mosdns.json, 脚本的输出(含错误信息)写入 syslog. 脚本失败时删除生成的配置, 向 syslog 写入 daemon.err 级别的 "mosdns not started" 记录, 不启动 mosdns.
+anti-pollution.uc 由 3.feeds-after-script.sh 放进包的 root/usr/share/mosdns/ 下随包安装.
+
+--- a/root/etc/init.d/mosdns
++++ b/root/etc/init.d/mosdns
+@@ -836,7 +836,16 @@
+ 
+ 	$MOSDNS_SCRIPT v2dat_dump
+ 
+-	[ "${CONF}" = "/var/etc/mosdns.json" ] && generate_config
++	if [ "${CONF}" = "/var/etc/mosdns.json" ]; then
++		generate_config
++		# Rewrite the config so that polluted answers from China DNS never reach clients; mosdns is not started when the rewrite fails.
++		anti_pollution_log=$(/usr/share/mosdns/anti-pollution.uc /var/etc/mosdns.json 2>&1) || {
++			rm -f /var/etc/mosdns.json
++			logger -t mosdns -p daemon.err "mosdns not started: anti-pollution.uc does not match the generated config, the upstream init script may have changed: $anti_pollution_log"
++			return 1
++		}
++		logger -t mosdns "$anti_pollution_log"
++	fi
+ 
+ 	procd_open_instance mosdns
+ 	procd_set_param env QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING=true

@@ -1,0 +1,104 @@
+
+luci-app-mosdns 页面文案(上游 sbwml/luci-app-mosdns)的补丁.
+应用: 3.feeds-after-script.sh 的 # luci-app-mosdns 段, patch -p1 -F0 在 luci-app-mosdns 包目录下应用, 上下文与上游不匹配时构建失败.
+作用: 白名单, DDNS 域名, Apple 域名解析优化的说明与 anti-pollution.uc 改写后的行为一致; DNS 重定向的说明用 "局域网 DNS" 指客户端发出的查询, 与国内 DNS 区分; 同时修改 JS 里的英文原文和 po/zh_Hans/mosdns.po 里的中文翻译.
+
+--- a/htdocs/luci-static/resources/view/mosdns/rules.js
++++ b/htdocs/luci-static/resources/view/mosdns/rules.js
+@@ -23,7 +23,7 @@
+ 				title: _('White Lists'),
+ 				file: '/etc/mosdns/rule/whitelist.txt',
+ 				desc: '<font color=\'red\'>'
+-					+ _('Added domain names always permit resolution using \'local DNS\' with the highest priority (one domain per line, supports domain matching rules).')
++					+ _('Added domain names are resolved by \'China DNS\' first, and by \'Remote DNS\' when the answer is a known polluted IP or a non-China IP. They have the highest priority, and their answers are not rewritten by the Cloudflare option (one domain per line, supports domain matching rules).')
+ 					+ '</font>'
+ 			},
+ 			{
+@@ -47,7 +47,7 @@
+ 				title: _('DDNS Lists'),
+ 				file: '/etc/mosdns/rule/ddnslist.txt',
+ 				desc: '<font color=\'red\'>'
+-					+ _('Added domain names will always use \'Local DNS\' for resolution, with a forced TTL of 5 seconds, and results will not be cached (one domain per line, supports domain matching rules).')
++					+ _('Added domain names are resolved by \'China DNS\' first, and by \'Remote DNS\' when the answer is a known polluted IP or a non-China IP. The TTL is forced to 5 seconds and results will not be cached (one domain per line, supports domain matching rules).')
+ 					+ '</font>'
+ 			},
+ 			{
+--- a/htdocs/luci-static/resources/view/mosdns/basic.js
++++ b/htdocs/luci-static/resources/view/mosdns/basic.js
+@@ -181,7 +181,7 @@
+ 		o.default = false;
+ 
+ 		if (L.hasSystemFeature('firewall4')) {
+-			o = s.taboption('basic', form.Flag, 'local_dns_redirect', _('DNS redirect'), _('Force redirect all local DNS queries to MosDNS, a.k.a. DNS Hijacking'));
++			o = s.taboption('basic', form.Flag, 'local_dns_redirect', _('DNS redirect'), _('Force redirect all LAN DNS queries to MosDNS, a.k.a. DNS Hijacking'));
+ 			o.default = false;
+ 			o.depends('redirect', '1');
+ 		}
+@@ -201,7 +201,7 @@
+ 		o.default = false;
+ 
+ 		o = s.taboption('basic', form.Flag, 'apple_optimization', _('Apple domains optimization'),
+-			_('For Apple domains equipped with Chinese mainland CDN, always responsive to Chinese CDN IP addresses'));
++			_('For Apple domains equipped with Chinese mainland CDN, Chinese CDN IP addresses are preferred; the Remote DNS answer is used when the China DNS answer is a polluted IP, a non-China IP or slow to arrive'));
+ 		o.depends('custom_local_dns', '1');
+ 		o.default = false;
+ 
+--- a/po/zh_Hans/mosdns.po
++++ b/po/zh_Hans/mosdns.po
+@@ -45,20 +45,25 @@
+ 
+ #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:26
+ msgid ""
+-"Added domain names always permit resolution using 'local DNS' with the "
+-"highest priority (one domain per line, supports domain matching rules)."
++"Added domain names are resolved by 'China DNS' first, and by 'Remote DNS' "
++"when the answer is a known polluted IP or a non-China IP. They have the "
++"highest priority, and their answers are not rewritten by the Cloudflare "
++"option (one domain per line, supports domain matching rules)."
+ msgstr ""
+-"加入的域名始终允许使用 “本地 DNS” 进行解析，且优先级最高（每个域名一行，支持"
+-"域名匹配规则）"
++"加入的域名优先使用 “国内 DNS” 进行解析，应答为已知污染 IP 或非中国大陆 IP 时"
++"，改用 “远程 DNS” 进行解析；优先级最高，不受 Cloudflare 选项改写（每个域名一"
++"行，支持域名匹配规则）"
+ 
+ #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:50
+ msgid ""
+-"Added domain names will always use 'Local DNS' for resolution, with a forced "
+-"TTL of 5 seconds, and results will not be cached (one domain per line, "
+-"supports domain matching rules)."
++"Added domain names are resolved by 'China DNS' first, and by 'Remote DNS' "
++"when the answer is a known polluted IP or a non-China IP. The TTL is forced "
++"to 5 seconds and results will not be cached (one domain per line, supports "
++"domain matching rules)."
+ msgstr ""
+-"加入的域名始终使用 “本地 DNS” 进行解析，并且强制 TTL 5 秒，解析结果不会进入缓"
+-"存（每个域名一行，支持域名匹配规则）"
++"加入的域名优先使用 “国内 DNS” 进行解析，应答为已知污染 IP 或非中国大陆 IP 时"
++"，改用 “远程 DNS” 进行解析；强制 TTL 5 秒，解析结果不会进入缓存（每个域名一"
++"行，支持域名匹配规则）"
+ 
+ #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:42
+ msgid ""
+@@ -545,13 +550,16 @@
+ 
+ #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:204
+ msgid ""
+-"For Apple domains equipped with Chinese mainland CDN, always responsive to "
+-"Chinese CDN IP addresses"
+-msgstr "配备中国大陆 CDN 的 Apple 域名，始终应答中国大陆 CDN 地址"
++"For Apple domains equipped with Chinese mainland CDN, Chinese CDN IP "
++"addresses are preferred; the Remote DNS answer is used when the China DNS "
++"answer is a polluted IP, a non-China IP or slow to arrive"
++msgstr ""
++"配备中国大陆 CDN 的 Apple 域名，优先应答中国大陆 CDN 地址；国内 DNS 应答为污"
++"染 IP、非中国大陆 IP 或响应较慢时，使用远程 DNS 的应答"
+ 
+ #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:184
+-msgid "Force redirect all local DNS queries to MosDNS, a.k.a. DNS Hijacking"
+-msgstr "强制将所有本地 DNS 查询重定向到 MosDNS，即 DNS 劫持。"
++msgid "Force redirect all LAN DNS queries to MosDNS, a.k.a. DNS Hijacking"
++msgstr "强制将所有局域网 DNS 查询重定向到 MosDNS，即 DNS 劫持。"
+ 
+ #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:180
+ msgid "Forward Dnsmasq Domain Name resolution requests to MosDNS"
